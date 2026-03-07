@@ -66,6 +66,7 @@ const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
 
 app.use('/uploads', express.static(uploadsDir));
+app.use(express.json());
 
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
