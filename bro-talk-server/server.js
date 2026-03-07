@@ -6,7 +6,7 @@ const path     = require('path');
 const fs       = require('fs');
 
 const PORT       = process.env.PORT || 3000;
-const IS_CLOUD   = !!process.env.LEAPCELL; // Leapcell setzt automatisch Umgebungsvariablen
+const IS_CLOUD = !!process.env.IS_CLOUD; // Leapcell setzt automatisch Umgebungsvariablen
 
 // Uploads nur lokal speichern, in Cloud in /tmp
 const uploadsDir = IS_CLOUD
@@ -248,3 +248,4 @@ io.on('connection', socket => {
 });
 
 server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));
+
