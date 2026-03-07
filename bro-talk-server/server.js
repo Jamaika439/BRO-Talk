@@ -5,7 +5,7 @@ const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 
-// ── Ordner & JSON-DB Setup ───────────────
+const PORT    = process.env.PORT || 3000;
 const dataDir    = path.join(__dirname, 'data');
 const uploadsDir = path.join(dataDir, 'uploads');
 const dbFile     = path.join(dataDir, 'db.json');
@@ -21,7 +21,6 @@ function saveDB(db) {
 }
 
 let db = loadDB();
-// Migration: dms-Feld sicherstellen
 if (!db.dms) { db.dms = {}; saveDB(db); }
 
 function addMessage(room, msg) {
@@ -34,9 +33,6 @@ function getMessages(room) {
   return (db.messages[room] || []).slice(-80);
 }
 
-// ── DM Persistenz ───────────────────────
-// Key = sortiertes Paar "id1_id2" – aber wir indexieren nach beiden socketIds
-// Da socket IDs bei Reconnect wechseln, speichern wir nach Name-Paaren
 function dmKey(nameA, nameB) {
   return [nameA, nameB].sort().join('__DM__');
 }
@@ -44,7 +40,6 @@ function addDM(nameA, nameB, msg) {
   const key = dmKey(nameA, nameB);
   if (!db.dms[key]) db.dms[key] = [];
   db.dms[key].push(msg);
-  // Max 200 DMs pro Konversation
   if (db.dms[key].length > 200) db.dms[key] = db.dms[key].slice(-200);
   saveDB(db);
 }
@@ -52,14 +47,12 @@ function getDMs(nameA, nameB) {
   return (db.dms[dmKey(nameA, nameB)] || []).slice(-100);
 }
 
-// ── Multer ──────────────────────────────
 const storage = multer.diskStorage({
   destination: uploadsDir,
   filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-// ── Express ─────────────────────────────
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
@@ -69,23 +62,20 @@ app.use(express.json());
 
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
-  res.json({ url: `http://localhost:3000/uploads/${req.file.filename}`, name: req.file.originalname });
+  const host = process.env.APP_URL || `http://localhost:${PORT}`;
+  res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
 });
 
 app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
 app.get('/rooms', (req, res) => res.json(db.rooms));
-
-// ── DM History Endpoint ─────────────────
-// Client fragt: GET /dm-history?a=Alice&b=Bob
 app.get('/dm-history', (req, res) => {
   const { a, b } = req.query;
   if (!a || !b) return res.status(400).json({ error: 'Missing names' });
   res.json(getDMs(a, b));
 });
 
-// ── Socket.io ───────────────────────────
-const users      = {};  // socketId → { name, room, color, avatar, status, inVoice }
-const voiceRooms = {};  // roomName → Set<socketId>
+const users      = {};
+const voiceRooms = {};
 
 function ts() {
   return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -104,7 +94,6 @@ io.on('connection', socket => {
   const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 4000);
   socket.on('pong_check', t => socket.emit('ping_result', Date.now() - t));
 
-  // ── JOIN ────────────────────────────
   socket.on('join', ({ name, room = 'Allgemein', color = '#5865f2', avatar = '😎' }) => {
     users[socket.id] = { name, room, color, avatar, status: 'online', inVoice: false };
     if (!db.rooms.includes(room)) { db.rooms.push(room); saveDB(db); }
@@ -116,7 +105,6 @@ io.on('connection', socket => {
     sysMsg(room, `${name} ist beigetreten.`);
   });
 
-  // ── PROFIL ──────────────────────────
   socket.on('updateProfile', ({ name, color, avatar }) => {
     const u = users[socket.id];
     if (!u) return;
@@ -131,7 +119,6 @@ io.on('connection', socket => {
     if (users[socket.id]) { users[socket.id].status = status; broadcastUsers(); }
   });
 
-  // ── MESSAGE ─────────────────────────
   socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
     const u = users[socket.id];
     if (!u) return;
@@ -145,7 +132,6 @@ io.on('connection', socket => {
     io.to(room).emit('message', msg);
   });
 
-  // ── ROOMS ───────────────────────────
   socket.on('changeRoom', ({ newRoom }) => {
     const u = users[socket.id];
     if (!u) return;
@@ -166,7 +152,6 @@ io.on('connection', socket => {
     broadcastRooms();
   });
 
-  // ── VOICE ───────────────────────────
   socket.on('joinVoice', ({ room }) => {
     Object.entries(voiceRooms).forEach(([r, members]) => {
       if (r !== room && members.has(socket.id)) {
@@ -193,7 +178,6 @@ io.on('connection', socket => {
     broadcastUsers();
   });
 
-  // ── WebRTC SIGNALING ────────────────
   socket.on('rtc-offer',  ({ targetId, offer })     => io.to(targetId).emit('rtc-offer',  { fromId: socket.id, fromName: users[socket.id]?.name, offer }));
   socket.on('rtc-answer', ({ targetId, answer })    => io.to(targetId).emit('rtc-answer', { fromId: socket.id, answer }));
   socket.on('rtc-ice',    ({ targetId, candidate }) => io.to(targetId).emit('rtc-ice',    { fromId: socket.id, candidate }));
@@ -202,18 +186,15 @@ io.on('connection', socket => {
     if (users[socket.id]) { users[socket.id].inVoice = false; broadcastUsers(); }
   });
 
-  // ── SOUNDBOARD ──────────────────────
   socket.on('playSound', ({ room, soundName, soundData }) => {
     socket.to(room).emit('playSound', { soundName, soundData, fromName: users[socket.id]?.name });
   });
 
-  // ── TYPING ──────────────────────────
   socket.on('typing', ({ room }) => {
     const u = users[socket.id];
     if (u) socket.to(room).emit('typing', { name: u.name });
   });
 
-  // ── PRIVATE MESSAGES (mit Persistenz) ─
   socket.on('privateMessage', ({ targetId, text }) => {
     const sender   = users[socket.id];
     const receiver = users[targetId];
@@ -225,17 +206,11 @@ io.on('connection', socket => {
       text,
       timestamp: ts()
     };
-    // In DB speichern (nach Namen, da IDs sich ändern)
     if (receiver) addDM(sender.name, receiver.name, msg);
-
-    // An Empfänger senden
     io.to(targetId).emit('privateMessage', { ...msg, toSelf: false });
-    // Zurück an Sender (Bestätigung)
     socket.emit('privateMessage', { ...msg, toSelf: true });
   });
 
-  // ── DM History laden ────────────────
-  // Client fragt gezielt nach History wenn er DM öffnet
   socket.on('getDmHistory', ({ targetName }) => {
     const me = users[socket.id];
     if (!me || !targetName) return;
@@ -243,20 +218,14 @@ io.on('connection', socket => {
     socket.emit('dmHistory', { targetName, messages: history });
   });
 
-  // ── PRIVATE CALL ────────────────────
   socket.on('privateCall', ({ targetId }) => {
     const caller = users[socket.id];
     if (!caller) return;
     io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
   });
-  socket.on('privateCallAccept', ({ targetId }) => {
-    io.to(targetId).emit('privateCallAccepted', { fromId: socket.id });
-  });
-  socket.on('privateCallReject', ({ targetId }) => {
-    io.to(targetId).emit('privateCallRejected', { fromId: socket.id });
-  });
+  socket.on('privateCallAccept', ({ targetId }) => io.to(targetId).emit('privateCallAccepted', { fromId: socket.id }));
+  socket.on('privateCallReject', ({ targetId }) => io.to(targetId).emit('privateCallRejected', { fromId: socket.id }));
 
-  // ── DISCONNECT ──────────────────────
   socket.on('disconnect', () => {
     clearInterval(pingInterval);
     const u = users[socket.id];
@@ -270,4 +239,4 @@ io.on('connection', socket => {
   });
 });
 
-server.listen(3000, () => console.log('✅ Server läuft auf Port 3000'));
+server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));
