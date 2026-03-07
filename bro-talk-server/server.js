@@ -5,19 +5,27 @@ const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 
-const PORT    = process.env.PORT || 3000;
-const dataDir    = path.join(__dirname, 'data');
-const uploadsDir = path.join(dataDir, 'uploads');
-const dbFile     = path.join(dataDir, 'db.json');
+const PORT       = process.env.PORT || 3000;
+const IS_CLOUD   = !!process.env.LEAPCELL; // Leapcell setzt automatisch Umgebungsvariablen
 
-[dataDir, uploadsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
+// Uploads nur lokal speichern, in Cloud in /tmp
+const uploadsDir = IS_CLOUD
+  ? '/tmp/uploads'
+  : path.join(__dirname, 'data', 'uploads');
+
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+// DB: in Cloud nur im RAM, lokal auf Disk
+const dbFile = IS_CLOUD ? null : path.join(__dirname, 'data', 'db.json');
 
 function loadDB() {
+  if (!dbFile) return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {} };
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
   catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {} }; }
 }
 function saveDB(db) {
-  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+  if (!dbFile) return; // In Cloud nicht speichern
+  try { fs.writeFileSync(dbFile, JSON.stringify(db, null, 2)); } catch {}
 }
 
 let db = loadDB();
@@ -58,7 +66,6 @@ const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
 
 app.use('/uploads', express.static(uploadsDir));
-app.use(express.json());
 
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
