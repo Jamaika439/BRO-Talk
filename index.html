@@ -114,9 +114,8 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
 .prof-lbl{font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 #soundModal .mbox{width:420px}
 .sb-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;max-height:260px;overflow-y:auto}
-.sb-btn{background:var(--bg4);border:none;color:var(--text);padding:12px;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px}
+.sb-btn{background:var(--bg4);border:none;color:var(--text);padding:12px;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
 .sb-btn:hover{background:var(--accent);color:#fff}.sb-btn .sb-icon{font-size:1.4rem}
-/* DM */
 #dmWindow{display:none;position:fixed;bottom:24px;right:24px;width:320px;height:460px;background:var(--bg2);border-radius:14px;box-shadow:0 16px 48px #000c;border:1px solid var(--bg4);flex-direction:column;z-index:400;overflow:hidden}
 #dmWindow.on{display:flex}
 #dmTitlebar{padding:11px 14px;background:var(--bg1);display:flex;align-items:center;gap:9px;cursor:move;user-select:none;flex-shrink:0;border-bottom:1px solid var(--bg0);border-radius:14px 14px 0 0}
@@ -135,9 +134,7 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
 #dmInput:focus{outline:2px solid var(--accent)}
 #dmSendBtn{background:var(--accent);border:none;color:#fff;padding:7px 13px;border-radius:8px;cursor:pointer;font-weight:700;flex-shrink:0}
 #dmSendBtn:hover{background:var(--accent2)}
-/* Loading indicator im DM */
 .dm-loading{text-align:center;color:var(--muted);font-size:.78rem;padding:8px;font-style:italic}
-/* Call Toast */
 #callToast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--bg1);border:2px solid var(--green);border-radius:14px;padding:18px 28px;z-index:600;box-shadow:0 8px 32px #0009;text-align:center;min-width:280px}
 #callToast.on{display:block}
 #toastName{font-weight:700;font-size:1rem;margin-bottom:14px}
@@ -151,6 +148,7 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
 #fsOverlay.on{display:flex}
 #fsOverlay video{flex:1;width:100%;object-fit:contain}
 #fsBar{padding:10px 16px;background:linear-gradient(#000a,transparent);display:flex;align-items:center;position:absolute;top:0;left:0;right:0}
+#soundToast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:7px 18px;border-radius:20px;font-size:.85rem;font-weight:600;z-index:999;pointer-events:none;opacity:0;transition:opacity .2s}
 </style>
 </head>
 <body>
@@ -191,6 +189,12 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
 
 <div class="modal-bg" id="soundModal">
   <div class="mbox"><h3>🎵 Soundboard</h3>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:.8rem;color:var(--muted)">🔊</span>
+      <input type="range" id="sbVolume" min="0" max="100" value="100" style="flex:1;accent-color:var(--accent);height:4px">
+      <span id="sbVolLabel" style="font-size:.8rem;color:var(--muted);min-width:30px">100%</span>
+      <button id="sbStopBtn" style="background:var(--red);border:none;color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:700">⏹ Stop</button>
+    </div>
     <div class="sb-grid" id="sbGrid"></div>
     <label style="cursor:pointer;font-size:.85rem;color:var(--muted)">
       <input type="file" id="sbUpload" accept="audio/*" style="display:none">
@@ -200,6 +204,7 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
   </div>
 </div>
 
+<div id="soundToast"></div>
 <div id="lightbox"><img id="lbImg" src="" alt=""/></div>
 <div id="fsOverlay">
   <div id="fsBar">
@@ -285,9 +290,6 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
 </div>
 
 <script>
-// ═══════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════
 const AVATARS=['😎','🐱','🦊','🐼','🦁','🐸','👾','🤖','🦄','🐺','🎃','💀'];
 const COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0'];
 const EMOJIS=['😀','😂','🥹','😍','🤩','😎','🥸','🤔','😬','🙄','😴','🤯','🔥','💯','✅','❤️','💀','👏','🎉','👀','🫡','💪','🤝','👋','🙏','😭','😤','🥲','🤣','😅','😇','🥳','😏','😒','😡','🤬','🤮','🤑','🥶','👻','💩','🤡','👽','🫶','✊','🫠','🎮','🎵','🍕','🍺','🚀','⭐'];
@@ -299,18 +301,19 @@ const DEFAULT_SOUNDS=[
   {name:'Ding',emoji:'🔔',url:'https://www.soundjay.com/button/sounds/button-09.mp3'},
 ];
 
-// ═══════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════
 let socket,myId,myName='',myRoom='Allgemein',myColor='#5865f2',myAvatar='😎';
 const serverUrl='https://bro-talk.onrender.com';
 let micMuted=false,deafened=false;
 let peerConns={},localStream=null,shareStream=null,currentVoiceRoom=null;
-let sounds={},typingTimer=null,lastUserList=[];
+let typingTimer=null,lastUserList=[];
 let audioCtx=null,localGain=null,workletReady=false;
 let dmTarget=null,dmUnread={},pendingCallFrom=null;
 
-// ICE candidate queue – verhindert Buffering wenn ICE vor setRemoteDescription ankommt
+// Soundboard state
+let sounds={};
+try{ sounds=JSON.parse(localStorage.getItem('brotalk_sounds')||'{}'); }catch{}
+let currentSound=null,soundVolume=1.0;
+
 const iceQueues={};
 function queueIce(pid,c){ (iceQueues[pid]||(iceQueues[pid]=[])).push(c); }
 async function flushIce(pid){
@@ -319,9 +322,6 @@ async function flushIce(pid){
     try{ await pc.addIceCandidate(new RTCIceCandidate(c)); }catch{}
 }
 
-// ═══════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════
 (function init(){
   const ap=document.getElementById('avPick');
   AVATARS.forEach((a,i)=>{
@@ -359,9 +359,6 @@ async function flushIce(pid){
   initDmDrag();
 })();
 
-// ═══════════════════════════════════════════
-// JOIN
-// ═══════════════════════════════════════════
 document.getElementById('joinBtn').onclick=doJoin;
 document.getElementById('nameIn').onkeydown=e=>{ if(e.key==='Enter') document.getElementById('roomIn').focus(); };
 document.getElementById('roomIn').onkeydown=e=>{ if(e.key==='Enter') doJoin(); };
@@ -371,11 +368,7 @@ function doJoin(){
   const room=document.getElementById('roomIn').value.trim()||'Allgemein';
   if(!name){ document.getElementById('nameIn').focus(); return; }
   myName=name; myRoom=room;
-  socket=io(serverUrl, {
-    transports: ['websocket', 'polling'],
-    secure: true,
-    rejectUnauthorized: false
-  });
+  socket=io(serverUrl,{transports:['websocket','polling'],secure:true,rejectUnauthorized:false});
   socket.on('connect',()=>{ myId=socket.id; socket.emit('join',{name,room,color:myColor,avatar:myAvatar}); });
   socket.on('joined',({name:n,room:r})=>{
     myRoom=r; updateSelfBar();
@@ -383,10 +376,10 @@ function doJoin(){
     document.getElementById('loginOverlay').style.display='none';
     document.getElementById('msgInput').focus();
   });
-  socket.on('history',    msgs=>{ document.getElementById('chatArea').innerHTML=''; msgs.forEach(m=>renderMsg(m)); scrollChat(); });
-  socket.on('message',    m=>renderMsg(m,true));
-  socket.on('userList',   renderUserList);
-  socket.on('roomList',   renderRoomList);
+  socket.on('history',msgs=>{ document.getElementById('chatArea').innerHTML=''; msgs.forEach(m=>renderMsg(m)); scrollChat(); });
+  socket.on('message',m=>renderMsg(m,true));
+  socket.on('userList',renderUserList);
+  socket.on('roomList',renderRoomList);
   socket.on('roomChanged',({room,history})=>{
     myRoom=room; document.getElementById('chName').textContent=room;
     document.getElementById('chatArea').innerHTML=''; history.forEach(m=>renderMsg(m)); scrollChat();
@@ -402,29 +395,30 @@ function doJoin(){
     b.textContent=`⬤ ${ms}ms`;
     b.style.color=ms<80?'var(--green)':ms<200?'var(--yellow)':'var(--red)';
   });
-  // WebRTC
-  socket.on('voicePeers',     ({peers})         =>peers.forEach(pid=>initPeer(pid,true)));
-  socket.on('voicePeerJoined',({peerId,name:n}) =>{ sysLocal(`${n} ist dem Sprachkanal beigetreten`); initPeer(peerId,false); });
-  socket.on('voicePeerLeft',  ({peerId})         =>cleanPeer(peerId));
-  socket.on('rtc-offer',  onRtcOffer);
-  socket.on('rtc-answer', onRtcAnswer);
+  socket.on('voicePeers',({peers})=>peers.forEach(pid=>initPeer(pid,true)));
+  socket.on('voicePeerJoined',({peerId,name:n})=>{ sysLocal(`${n} ist dem Sprachkanal beigetreten`); initPeer(peerId,false); });
+  socket.on('voicePeerLeft',({peerId})=>cleanPeer(peerId));
+  socket.on('rtc-offer',onRtcOffer);
+  socket.on('rtc-answer',onRtcAnswer);
   socket.on('rtc-ice',async({fromId,candidate})=>{
     const pc=peerConns[fromId];
     if(!pc||!pc.remoteDescription?.type){ queueIce(fromId,candidate); return; }
     try{ await pc.addIceCandidate(new RTCIceCandidate(candidate)); }catch{}
   });
   socket.on('rtc-hangup',({fromId})=>cleanPeer(fromId));
-  // DM
-  socket.on('privateMessage',     onDmMsg);
-  socket.on('dmHistory',          onDmHistory);
+  socket.on('privateMessage',onDmMsg);
+  socket.on('dmHistory',onDmHistory);
   socket.on('privateCallIncoming',onCallIncoming);
   socket.on('privateCallAccepted',()=>sysLocal('✅ Anruf angenommen'));
   socket.on('privateCallRejected',()=>sysLocal('❌ Anruf abgelehnt'));
   // Soundboard
-  socket.on('playSound',({soundData,fromName})=>{ playBase64(soundData); sysLocal(fromName+' hat einen Sound gespielt'); });
-  socket.on('connect_error',()=>{
-    console.warn('Verbindungsfehler – versuche erneut...');
+  socket.on('playSound',({soundData,soundName,fromName})=>{
+    stopCurrentSound();
+    if(soundData){ currentSound=playBase64(soundData); }
+    showSoundToast(`🎵 ${fromName}: ${soundName}`);
   });
+  socket.on('stopSound',()=>stopCurrentSound());
+  socket.on('connect_error',()=>console.warn('Verbindungsfehler – versuche erneut...'));
 }
 
 function updateSelfBar(){
@@ -433,9 +427,6 @@ function updateSelfBar(){
   document.getElementById('selfName').textContent=myName;
 }
 
-// ═══════════════════════════════════════════
-// ROOMS
-// ═══════════════════════════════════════════
 function renderRoomList(rooms){
   const el=document.getElementById('roomList'); el.innerHTML='';
   rooms.forEach(r=>{
@@ -461,9 +452,6 @@ document.getElementById('createRoom').onclick=()=>{
 };
 document.getElementById('newRoomIn').onkeydown=e=>{ if(e.key==='Enter') document.getElementById('createRoom').click(); };
 
-// ═══════════════════════════════════════════
-// MESSAGES
-// ═══════════════════════════════════════════
 function renderMsg(m,scroll=false){
   const ca=document.getElementById('chatArea');
   if(m.type==='system'){
@@ -490,9 +478,6 @@ function renderMsg(m,scroll=false){
 function scrollChat(){ const c=document.getElementById('chatArea'); c.scrollTop=c.scrollHeight; }
 function sysLocal(t){ renderMsg({type:'system',content:t},true); }
 
-// ═══════════════════════════════════════════
-// SEND
-// ═══════════════════════════════════════════
 document.getElementById('sendBtn').onclick=sendMsg;
 document.getElementById('msgInput').onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} };
 document.getElementById('msgInput').oninput=function(){
@@ -505,9 +490,6 @@ function sendMsg(){
   document.getElementById('msgInput').value=''; document.getElementById('msgInput').style.height='auto';
 }
 
-// ═══════════════════════════════════════════
-// FILE UPLOAD
-// ═══════════════════════════════════════════
 document.getElementById('fileBtn').onclick=()=>document.getElementById('fileIn').click();
 document.getElementById('fileIn').onchange=async function(){
   const file=this.files[0]; if(!file) return;
@@ -521,9 +503,6 @@ document.getElementById('fileIn').onchange=async function(){
   this.value='';
 };
 
-// ═══════════════════════════════════════════
-// EMOJI / GIF
-// ═══════════════════════════════════════════
 document.getElementById('emojiBtn').onclick=e=>{ e.stopPropagation(); document.getElementById('emojiPicker').classList.toggle('on'); document.getElementById('gifPicker').classList.remove('on'); };
 document.getElementById('gifBtn').onclick=e=>{ e.stopPropagation(); document.getElementById('gifPicker').classList.toggle('on'); document.getElementById('emojiPicker').classList.remove('on'); };
 document.addEventListener('click',closeAllPickers);
@@ -548,9 +527,6 @@ async function searchGifs(q){
   }catch{ g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>'; }
 }
 
-// ═══════════════════════════════════════════
-// USER LIST
-// ═══════════════════════════════════════════
 function renderUserList(users){
   lastUserList=users;
   const el=document.getElementById('userList'); el.innerHTML='';
@@ -589,9 +565,6 @@ function renderUserList(users){
   });
 }
 
-// ═══════════════════════════════════════════
-// PROFILE
-// ═══════════════════════════════════════════
 document.getElementById('settingsBtn').onclick=()=>{
   document.getElementById('profNameIn').value=myName;
   document.querySelectorAll('.prof-av').forEach(d=>d.classList.toggle('selected',d.dataset.av===myAvatar));
@@ -612,9 +585,6 @@ document.getElementById('saveProfile').onclick=()=>{
   document.getElementById('profileModal').classList.remove('on');
 };
 
-// ═══════════════════════════════════════════
-// MIC / DEAF
-// ═══════════════════════════════════════════
 document.getElementById('micBtn').onclick=()=>{
   micMuted=!micMuted;
   document.getElementById('micBtn').textContent=micMuted?'🔇':'🎙';
@@ -629,83 +599,35 @@ document.getElementById('deafBtn').onclick=()=>{
   Object.values(peerConns).forEach(pc=>{ if(pc._gainNode) pc._gainNode.gain.value=deafened?0:pc._volume; });
 };
 
-// ═══════════════════════════════════════════
-// AUDIO PROCESSING – kein ScriptProcessorNode mehr!
-// AudioWorklet läuft in eigenem Thread → kein Kratzen
-// ═══════════════════════════════════════════
 async function setupAudioProcessing(stream){
   audioCtx=new AudioContext({sampleRate:48000,latencyHint:'interactive'});
-
-  // Worklet laden (noise-gate-processor.js muss im Projektordner liegen)
   if(!workletReady){
-    try{
-      await audioCtx.audioWorklet.addModule('noise-gate-processor.js');
-      workletReady=true;
-    }catch(e){
-      console.warn('AudioWorklet nicht ladbar, Fallback ohne Noise Gate:',e);
-    }
+    try{ await audioCtx.audioWorklet.addModule('noise-gate-processor.js'); workletReady=true; }catch(e){ console.warn('AudioWorklet nicht ladbar:',e); }
   }
-
   const src=audioCtx.createMediaStreamSource(stream);
   localGain=audioCtx.createGain(); localGain.gain.value=1.0;
-
-  // ── Filter Chain (schlank gehalten, weniger Phase-Shifts = weniger Kratzen) ──
-  // 1. DC-Block / Hochpass: entfernt Gleichanteile & tiefes Rumpeln
-  const hp=audioCtx.createBiquadFilter();
-  hp.type='highpass'; hp.frequency.value=100; hp.Q.value=0.7;
-
-  // 2. Netzbrumm-Notch (50 Hz Europa)
-  const notch=audioCtx.createBiquadFilter();
-  notch.type='notch'; notch.frequency.value=50; notch.Q.value=8;
-
-  // 3. Telefon-Bandpass (Sprache 300–3400 Hz) als Lowpass-Stufe
-  const lp=audioCtx.createBiquadFilter();
-  lp.type='lowpass'; lp.frequency.value=7500; lp.Q.value=0.5; // sanfter als vorher
-
-  // 4. Presence leicht angehoben (Sprachverständlichkeit)
-  const presence=audioCtx.createBiquadFilter();
-  presence.type='peaking'; presence.frequency.value=2800; presence.Q.value=0.8; presence.gain.value=4; // war 8 → halbiert
-
-  // 5. Dynamik-Kompressor
-  const comp=audioCtx.createDynamicsCompressor();
-  comp.threshold.value=-24; comp.knee.value=10; comp.ratio.value=3;
-  comp.attack.value=0.003; comp.release.value=0.15;
-
-  // 6. Brickwall Limiter
-  const limiter=audioCtx.createDynamicsCompressor();
-  limiter.threshold.value=-2; limiter.knee.value=0; limiter.ratio.value=20;
-  limiter.attack.value=0.001; limiter.release.value=0.05;
-
-  // 7. Output Gain (leicht runter von 1.1)
+  const hp=audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=100; hp.Q.value=0.7;
+  const notch=audioCtx.createBiquadFilter(); notch.type='notch'; notch.frequency.value=50; notch.Q.value=8;
+  const lp=audioCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=7500; lp.Q.value=0.5;
+  const presence=audioCtx.createBiquadFilter(); presence.type='peaking'; presence.frequency.value=2800; presence.Q.value=0.8; presence.gain.value=4;
+  const comp=audioCtx.createDynamicsCompressor(); comp.threshold.value=-24; comp.knee.value=10; comp.ratio.value=3; comp.attack.value=0.003; comp.release.value=0.15;
+  const limiter=audioCtx.createDynamicsCompressor(); limiter.threshold.value=-2; limiter.knee.value=0; limiter.ratio.value=20; limiter.attack.value=0.001; limiter.release.value=0.05;
   const outGain=audioCtx.createGain(); outGain.gain.value=0.95;
   const dest=audioCtx.createMediaStreamDestination();
-
   if(workletReady){
-    // Mit Noise Gate Worklet (kein Main-Thread-Blocking)
     const gate=new AudioWorkletNode(audioCtx,'noise-gate');
-    src.connect(localGain).connect(notch).connect(hp).connect(lp)
-       .connect(presence).connect(gate).connect(comp).connect(limiter)
-       .connect(outGain).connect(dest);
+    src.connect(localGain).connect(notch).connect(hp).connect(lp).connect(presence).connect(gate).connect(comp).connect(limiter).connect(outGain).connect(dest);
   } else {
-    // Fallback: ohne Noise Gate
-    src.connect(localGain).connect(notch).connect(hp).connect(lp)
-       .connect(presence).connect(comp).connect(limiter).connect(outGain).connect(dest);
+    src.connect(localGain).connect(notch).connect(hp).connect(lp).connect(presence).connect(comp).connect(limiter).connect(outGain).connect(dest);
   }
-
   return dest.stream;
 }
 
-// ═══════════════════════════════════════════
-// VOICE
-// ═══════════════════════════════════════════
 async function joinVoice(roomName){
   if(currentVoiceRoom===roomName){ leaveVoice(); return; }
   if(currentVoiceRoom) leaveVoice();
   try{
-    const raw=await navigator.mediaDevices.getUserMedia({
-      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,sampleRate:48000},
-      video:false
-    });
+    const raw=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,sampleRate:48000},video:false});
     localStream=await setupAudioProcessing(raw);
   }catch(e){ alert('Mikrofon: '+e.message); return; }
   currentVoiceRoom=roomName;
@@ -714,7 +636,6 @@ async function joinVoice(roomName){
   document.getElementById('callBar').classList.add('on');
   renderVoiceList();
 }
-
 function leaveVoice(){
   if(!currentVoiceRoom) return;
   socket.emit('leaveVoice',{room:currentVoiceRoom});
@@ -732,28 +653,21 @@ document.getElementById('hangupBtn').onclick=leaveVoice;
 function makePeer(pid){
   if(peerConns[pid]){ try{peerConns[pid].close();}catch{} peerConns[pid]._audioEl?.remove(); delete peerConns[pid]; }
   const pc=new RTCPeerConnection(ICE_CFG);
-  peerConns[pid]=pc;
-  pc._volume=1.0; pc._muted=false;
+  peerConns[pid]=pc; pc._volume=1.0; pc._muted=false;
   if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   pc.onicecandidate=({candidate})=>{ if(candidate) socket.emit('rtc-ice',{targetId:pid,candidate}); };
   pc.onconnectionstatechange=()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState)) cleanPeer(pid); };
   pc.ontrack=({track,streams})=>{
     if(track.kind==='audio'){
       const stream=streams[0]||new MediaStream([track]);
-      // Eigener AudioContext pro Peer – sauberer als geteilt
       const ctx=new AudioContext({sampleRate:48000,latencyHint:'interactive'});
       const mediaSrc=ctx.createMediaStreamSource(stream);
       const gain=ctx.createGain(); gain.gain.value=pc._muted?0:pc._volume;
-      // Leichter High-Shelf zum Entfernen von HF-Artefakten beim Empfang
-      const shelf=ctx.createBiquadFilter();
-      shelf.type='highshelf'; shelf.frequency.value=8000; shelf.gain.value=-4;
-      const lim=ctx.createDynamicsCompressor();
-      lim.threshold.value=-3; lim.knee.value=0; lim.ratio.value=20; lim.attack.value=0.001; lim.release.value=0.05;
+      const shelf=ctx.createBiquadFilter(); shelf.type='highshelf'; shelf.frequency.value=8000; shelf.gain.value=-4;
+      const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-3; lim.knee.value=0; lim.ratio.value=20; lim.attack.value=0.001; lim.release.value=0.05;
       mediaSrc.connect(gain).connect(shelf).connect(lim).connect(ctx.destination);
       pc._gainNode=gain; pc._audioCtx=ctx;
-      // Dummy-Audio-Element damit Browser Audio nicht suspendiert
-      const dummy=document.createElement('audio');
-      dummy.muted=true; dummy.srcObject=stream; dummy.style.display='none';
+      const dummy=document.createElement('audio'); dummy.muted=true; dummy.srcObject=stream; dummy.style.display='none';
       document.body.appendChild(dummy); dummy.play().catch(()=>{});
       pc._audioEl=dummy;
       renderUserList(lastUserList);
@@ -775,41 +689,33 @@ async function initPeer(pid,asInit){
     }catch(e){ cleanPeer(pid); }
   }
 }
-
 async function onRtcOffer({fromId,fromName,offer}){
   if(peerConns[fromId]) cleanPeer(fromId);
   if(!currentVoiceRoom){ if(!confirm(`📞 ${fromName} ruft an – Annehmen?`)) return; await joinVoice('Lounge'); }
   const pc=makePeer(fromId);
   try{
     await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    await flushIce(fromId); // gepufferte ICE-Kandidaten nachholen
+    await flushIce(fromId);
     const ans=await pc.createAnswer();
     await pc.setLocalDescription(ans);
     socket.emit('rtc-answer',{targetId:fromId,answer:ans});
   }catch(e){ console.error('onRtcOffer',e); cleanPeer(fromId); }
 }
-
 async function onRtcAnswer({fromId,answer}){
   const pc=peerConns[fromId]; if(!pc) return;
   if(pc.signalingState==='have-local-offer'){
-    try{
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      await flushIce(fromId); // gepufferte ICE-Kandidaten nachholen
-    }catch(e){ console.warn('onRtcAnswer',e); }
+    try{ await pc.setRemoteDescription(new RTCSessionDescription(answer)); await flushIce(fromId); }catch(e){ console.warn('onRtcAnswer',e); }
   }
 }
-
 function cleanPeer(pid){
   const pc=peerConns[pid]; if(!pc) return;
   pc._audioEl?.pause(); pc._audioEl?.remove();
   try{pc._audioCtx?.close();}catch{}
   try{pc.close();}catch{}
-  delete peerConns[pid];
-  delete iceQueues[pid];
+  delete peerConns[pid]; delete iceQueues[pid];
   document.getElementById('tile-'+pid)?.remove();
   if(!document.getElementById('videoGrid').children.length) document.getElementById('videoGrid').classList.remove('on');
 }
-
 function toggleUserMute(pid,btn){
   const pc=peerConns[pid]; if(!pc) return;
   pc._muted=!pc._muted;
@@ -825,9 +731,6 @@ function setUserVolume(pid,val){
   const lbl=document.getElementById('vl-'+pid); if(lbl) lbl.textContent=Math.round(val)+'%';
 }
 
-// ═══════════════════════════════════════════
-// SCREENSHARE
-// ═══════════════════════════════════════════
 document.getElementById('shareBtn').onclick=()=>{
   if(!currentVoiceRoom){ alert('Erst Sprachkanal beitreten!'); return; }
   shareStream?stopShare():openSourcePicker();
@@ -934,9 +837,6 @@ function addRemoteTile(pid,stream){
   vg.appendChild(tile); vg.classList.add('on');
 }
 
-// ═══════════════════════════════════════════
-// FULLSCREEN
-// ═══════════════════════════════════════════
 function openFullscreen(stream,label){
   document.getElementById('fsLabel').textContent=label;
   document.getElementById('fsVideo').srcObject=stream;
@@ -950,80 +850,105 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeFullscreen();
 // ═══════════════════════════════════════════
 document.getElementById('sbBtn').onclick=()=>{ renderSoundboard(); document.getElementById('soundModal').classList.add('on'); };
 document.getElementById('closeSounds').onclick=()=>document.getElementById('soundModal').classList.remove('on');
+
+document.getElementById('sbVolume').oninput=function(){
+  soundVolume=this.value/100;
+  document.getElementById('sbVolLabel').textContent=this.value+'%';
+  if(currentSound) currentSound.volume=soundVolume;
+};
+document.getElementById('sbStopBtn').onclick=()=>{
+  stopCurrentSound();
+  socket?.emit('stopSound',{room:myRoom});
+};
+
+function stopCurrentSound(){
+  if(currentSound){ currentSound.pause(); currentSound.currentTime=0; currentSound=null; }
+}
+
 function renderSoundboard(){
   const g=document.getElementById('sbGrid'); g.innerHTML='';
   DEFAULT_SOUNDS.forEach(s=>{
     const b=document.createElement('button'); b.className='sb-btn';
     b.innerHTML=`<span class="sb-icon">${s.emoji}</span>${esc(s.name)}`;
-    b.onclick=()=>{ new Audio(s.url).play().catch(()=>{}); socket?.emit('playSound',{room:myRoom,soundName:s.name,soundData:null}); };
+    b.onclick=()=>{
+      stopCurrentSound();
+      currentSound=new Audio(s.url); currentSound.volume=soundVolume;
+      currentSound.play().catch(()=>{});
+      socket?.emit('playSound',{room:myRoom,soundName:s.name,soundData:null});
+    };
     g.appendChild(b);
   });
   Object.entries(sounds).forEach(([name,data])=>{
+    const wrap=document.createElement('div'); wrap.style.cssText='position:relative';
     const b=document.createElement('button'); b.className='sb-btn';
     b.innerHTML=`<span class="sb-icon">🎵</span>${esc(name)}`;
-    b.onclick=()=>{ playBase64(data); socket?.emit('playSound',{room:myRoom,soundName:name,soundData:data}); };
-    g.appendChild(b);
+    b.onclick=()=>{
+      stopCurrentSound();
+      currentSound=playBase64(data);
+      socket?.emit('playSound',{room:myRoom,soundName:name,soundData:data});
+    };
+    const del=document.createElement('button');
+    del.textContent='✕';
+    del.style.cssText='position:absolute;top:4px;right:4px;background:var(--red);border:none;color:#fff;border-radius:4px;cursor:pointer;padding:1px 5px;font-size:.7rem;z-index:1';
+    del.onclick=e=>{ e.stopPropagation(); delete sounds[name]; localStorage.setItem('brotalk_sounds',JSON.stringify(sounds)); renderSoundboard(); };
+    wrap.append(b,del); g.appendChild(wrap);
   });
 }
+
 document.getElementById('sbUpload').onchange=function(){
   const file=this.files[0]; if(!file) return;
-  const r=new FileReader(); r.onload=e=>{ sounds[file.name]=e.target.result; }; r.readAsDataURL(file); this.value='';
+  const r=new FileReader();
+  r.onload=e=>{ sounds[file.name]=e.target.result; localStorage.setItem('brotalk_sounds',JSON.stringify(sounds)); renderSoundboard(); };
+  r.readAsDataURL(file); this.value='';
 };
-function playBase64(data){ if(!data) return; new Audio(data).play().catch(()=>{}); }
+
+function playBase64(data){
+  if(!data) return null;
+  const a=new Audio(data); a.volume=soundVolume; a.play().catch(()=>{}); return a;
+}
+
+function showSoundToast(msg){
+  const t=document.getElementById('soundToast');
+  t.textContent=msg; t.style.opacity='1';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.opacity='0',2500);
+}
 
 // ═══════════════════════════════════════════
-// DM – PRIVATCHAT mit Persistenz
+// DM
 // ═══════════════════════════════════════════
 function openDM(user){
-  dmTarget=user;
-  dmUnread[user.id]=0;
+  dmTarget=user; dmUnread[user.id]=0;
   const av=document.getElementById('dmAv');
   av.textContent=user.avatar||user.name[0].toUpperCase();
   av.style.background=(user.color||'#5865f2')+'66';
   document.getElementById('dmTitleName').textContent=user.name;
-  // Zuerst Ladespin zeigen, dann History vom Server holen
   const el=document.getElementById('dmMsgs');
   el.innerHTML='<div class="dm-loading">💬 Lade Verlauf…</div>';
   document.getElementById('dmWindow').classList.add('on');
   document.getElementById('dmInput').focus();
-  // History vom Server anfordern (via Socket)
   socket.emit('getDmHistory',{targetName:user.name});
   renderUserList(lastUserList);
 }
-
-// Server antwortet mit gespeichertem DM-Verlauf
 function onDmHistory({targetName,messages}){
-  // Nur rendern wenn das Fenster noch für diesen User offen ist
   if(!dmTarget||dmTarget.name!==targetName) return;
-  const el=document.getElementById('dmMsgs');
-  el.innerHTML='';
-  if(!messages.length){
-    el.innerHTML='<div class="dm-loading">Noch keine Nachrichten</div>';
-    return;
-  }
+  const el=document.getElementById('dmMsgs'); el.innerHTML='';
+  if(!messages.length){ el.innerHTML='<div class="dm-loading">Noch keine Nachrichten</div>'; return; }
   messages.forEach(m=>appendDM(m,false));
   el.scrollTop=el.scrollHeight;
 }
-
 function appendDM(msg,scroll=true){
   const el=document.getElementById('dmMsgs'); if(!el) return;
-  // Loading-Placeholder entfernen falls vorhanden
-  const placeholder=el.querySelector('.dm-loading');
-  if(placeholder) placeholder.remove();
+  el.querySelector('.dm-loading')?.remove();
   const out=msg.fromId===myId||msg.fromName===myName;
   const d=document.createElement('div'); d.className='dm-m '+(out?'out':'in');
   d.innerHTML=(!out?`<div class="dm-who">${esc(msg.fromName)}</div>`:'')+`<div>${esc(msg.text)}</div><div class="dm-t">${msg.timestamp||''}</div>`;
   el.appendChild(d);
   if(scroll) el.scrollTop=el.scrollHeight;
 }
-
-document.getElementById('dmCloseBtn').onclick=()=>{
-  document.getElementById('dmWindow').classList.remove('on'); dmTarget=null;
-};
+document.getElementById('dmCloseBtn').onclick=()=>{ document.getElementById('dmWindow').classList.remove('on'); dmTarget=null; };
 document.getElementById('dmSendBtn').onclick=sendDM;
 document.getElementById('dmInput').onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendDM(); } };
 document.getElementById('dmInput').oninput=function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,80)+'px'; };
-
 function sendDM(){
   const text=document.getElementById('dmInput').value.trim();
   if(!text||!dmTarget||!socket) return;
@@ -1031,25 +956,18 @@ function sendDM(){
   document.getElementById('dmInput').value='';
   document.getElementById('dmInput').style.height='auto';
 }
-
 document.getElementById('dmCallBtn').onclick=()=>{ if(!dmTarget||!socket) return; socket.emit('privateCall',{targetId:dmTarget.id}); joinVoice('Lounge'); };
-
 function onDmMsg(msg){
-  // Nachricht direkt im offenen Fenster anzeigen wenn passend
   const otherId=msg.toSelf?msg.targetId:msg.fromId;
-  const otherUser=lastUserList.find(u=>u.id===otherId);
   if(dmTarget&&(dmTarget.id===otherId||(msg.toSelf&&dmTarget.id===msg.targetId))){
     appendDM(msg);
   } else if(!msg.toSelf){
     dmUnread[otherId]=(dmUnread[otherId]||0)+1;
     renderUserList(lastUserList);
-    // Kurzer Ton
     try{ const c=new AudioContext(),o=c.createOscillator(),g=c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value=880; g.gain.value=0.07; o.start(); o.stop(c.currentTime+0.07); }catch{}
   }
 }
-
 function startPrivateCall(user){ socket.emit('privateCall',{targetId:user.id}); joinVoice('Lounge'); }
-
 function onCallIncoming({fromId,fromName}){
   pendingCallFrom=fromId;
   document.getElementById('toastName').textContent=`📞 ${fromName} ruft an`;
@@ -1069,7 +987,7 @@ document.getElementById('toastRej').onclick=()=>{
 };
 
 function initDmDrag(){
-  const win=document.getElementById('dmWindow'), bar=document.getElementById('dmTitlebar');
+  const win=document.getElementById('dmWindow'),bar=document.getElementById('dmTitlebar');
   let ox=0,oy=0,drag=false;
   bar.onmousedown=e=>{
     if(e.target.closest('button')) return;
@@ -1082,15 +1000,9 @@ function initDmDrag(){
   document.addEventListener('mouseup',()=>drag=false);
 }
 
-// ═══════════════════════════════════════════
-// LIGHTBOX
-// ═══════════════════════════════════════════
 function openLightbox(src){ document.getElementById('lbImg').src=src; document.getElementById('lightbox').classList.add('on'); }
 document.getElementById('lightbox').onclick=()=>document.getElementById('lightbox').classList.remove('on');
 
-// ═══════════════════════════════════════════
-// UTILS
-// ═══════════════════════════════════════════
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function linkify(s){ return s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:var(--accent)">$1</a>'); }
 </script>
