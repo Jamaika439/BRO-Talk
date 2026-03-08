@@ -1300,7 +1300,7 @@ function setUserVolume(pid,val){
   pc._volume=val/100;
   if(!userVolumes[pid]) userVolumes[pid]={vol:1.0,muted:false};
   userVolumes[pid].vol=pc._volume;
-  if(!pc._muted&&pc._gainNode) pc._gainNode.gain.value=pc._volume*masterVolume;
+  if(!pc._muted&&pc._gainNode) pc._gainNode.gain.value=pc._volume;
   const lbl=document.getElementById('vl-'+pid); if(lbl) lbl.textContent=Math.round(val)+'%';
 }
 
@@ -1550,8 +1550,8 @@ document.getElementById('masterVolSlider').oninput=function(){
 };
 
 function applyMasterVolume(){
-  Object.values(peerConns).forEach(pc=>{
-    if(pc._gainNode) pc._gainNode.gain.value=(pc._muted?0:pc._volume)*masterVolume;
+  Object.entries(peerConns).forEach(([pid,pc])=>{
+    if(pc._gainNode) pc._gainNode.gain.value=pc._muted?0:pc._volume*masterVolume;
   });
 }
 
