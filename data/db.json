@@ -1,0 +1,176 @@
+{
+  "messages": {
+    "Allgemein": [
+      {
+        "id": 1772623186050,
+        "user": "s",
+        "userId": "0g9M9M15sazEVxg2AAAB",
+        "color": "#5865f2",
+        "avatar": "😎",
+        "type": "image",
+        "content": "http://localhost:3000/uploads/1772623186045_dogecoin.jpg",
+        "fileName": "dogecoin.jpg",
+        "timestamp": "12:19"
+      },
+      {
+        "id": 1772627588345,
+        "user": "e",
+        "userId": "0nF-0zNnjlDK3PCDAAAD",
+        "color": "#5865f2",
+        "avatar": "🎃",
+        "type": "text",
+        "content": "z",
+        "fileName": null,
+        "timestamp": "13:33"
+      },
+      {
+        "id": 1772638410745,
+        "user": "ds",
+        "userId": "KVlc3hyw-IC1xUFlAAAD",
+        "color": "#5865f2",
+        "avatar": "🦄",
+        "type": "text",
+        "content": "ycyxcy",
+        "fileName": null,
+        "timestamp": "16:33"
+      }
+    ],
+    "Gaming": [
+      {
+        "id": 1772623595161,
+        "user": "ddd",
+        "userId": "gP77JFJg2FE0mKn1AAAB",
+        "color": "#f23f42",
+        "avatar": "🐼",
+        "type": "text",
+        "content": "🤡",
+        "fileName": null,
+        "timestamp": "12:26"
+      },
+      {
+        "id": 1772627650212,
+        "user": "d",
+        "userId": "QCeLukdtDRSb1ln3AAAB",
+        "color": "#5865f2",
+        "avatar": "👾",
+        "type": "text",
+        "content": "🥲",
+        "fileName": null,
+        "timestamp": "13:34"
+      }
+    ],
+    "Musik": [
+      {
+        "id": 1772623613381,
+        "user": "ddd",
+        "userId": "gP77JFJg2FE0mKn1AAAB",
+        "color": "#f23f42",
+        "avatar": "🐼",
+        "type": "text",
+        "content": "sdfsdfs",
+        "fileName": null,
+        "timestamp": "12:26"
+      },
+      {
+        "id": 1772626069211,
+        "user": "ddd",
+        "userId": "YL3Mnk5TAxEm5WpeAAAB",
+        "color": "#5865f2",
+        "avatar": "🤖",
+        "type": "image",
+        "content": "http://localhost:3000/uploads/1772626069206_941adm.jpg",
+        "fileName": "941adm.jpg",
+        "timestamp": "13:07"
+      }
+    ]
+  },
+  "rooms": [
+    "Allgemein",
+    "Gaming",
+    "Musik",
+    "y"
+  ],
+  "profiles": {},
+  "dms": {
+    "ds__DM__xx": [
+      {
+        "fromId": "M8PYdEzlYVKwNGuLAAAB",
+        "fromName": "xx",
+        "targetId": "KVlc3hyw-IC1xUFlAAAD",
+        "text": "cc",
+        "timestamp": "16:33"
+      },
+      {
+        "fromId": "KVlc3hyw-IC1xUFlAAAD",
+        "fromName": "ds",
+        "targetId": "M8PYdEzlYVKwNGuLAAAB",
+        "text": "cxcxc",
+        "timestamp": "16:33"
+      },
+      {
+        "fromId": "KVlc3hyw-IC1xUFlAAAD",
+        "fromName": "ds",
+        "targetId": "M8PYdEzlYVKwNGuLAAAB",
+        "text": "yxcyx",
+        "timestamp": "16:33"
+      }
+    ],
+    "d__DM__ddd": [
+      {
+        "fromId": "GhXPApSkHapL1gnyAAAD",
+        "fromName": "ddd",
+        "targetId": "zbL2cDD8JafTPmJeAAAB",
+        "text": "cyxcyxcy",
+        "timestamp": "16:35"
+      }
+    ],
+    "ccc__DM__d": [
+      {
+        "fromId": "9riYqRH8psVQMAYZAAAF",
+        "fromName": "ccc",
+        "targetId": "zbL2cDD8JafTPmJeAAAB",
+        "text": "b xcvbxcb",
+        "timestamp": "16:47"
+      },
+      {
+        "fromId": "zbL2cDD8JafTPmJeAAAB",
+        "fromName": "d",
+        "targetId": "9riYqRH8psVQMAYZAAAF",
+        "text": "cvbcvb",
+        "timestamp": "16:47"
+      }
+    ],
+    "flo__DM__ja,irp": [
+      {
+        "fromId": "ytStchnrM_EEP8eaAAAD",
+        "fromName": "ja,irp",
+        "targetId": "Bs2Q9S2DZ0CaHs8vAAAB",
+        "text": "yxcvyxcyxcyxcyx",
+        "timestamp": "18:02"
+      },
+      {
+        "fromId": "Bs2Q9S2DZ0CaHs8vAAAB",
+        "fromName": "flo",
+        "targetId": "ytStchnrM_EEP8eaAAAD",
+        "text": "<yxcacyx",
+        "timestamp": "18:02"
+      }
+    ],
+    "ddsfd__DM__ghngh": [
+      {
+        "fromId": "UnTirqx3UP5kWThlAAAD",
+        "fromName": "ddsfd",
+        "targetId": "7cgeirLK6a9p-SH2AAAB",
+        "text": "sfsdfs",
+        "timestamp": "20:14"
+      },
+      {
+        "fromId": "7cgeirLK6a9p-SH2AAAB",
+        "fromName": "ghngh",
+        "targetId": "UnTirqx3UP5kWThlAAAD",
+        "text": "fsfsf",
+        "timestamp": "20:14"
+      }
+    ]
+  }
+}
