@@ -493,7 +493,30 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 // ══════════════════════════════════════════════════════════
 const AVATARS=['😎','🐱','🦊','🐼','🦁','🐸','👾','🤖','🦄','🐺','🎃','💀'];
 const COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0'];
-const EMOJIS=['😀','😂','🥹','😍','🤩','😎','🥸','🤔','😬','🙄','😴','🤯','🔥','💯','✅','❤️','💀','👏','🎉','👀','🫡','💪','🤝','👋','🙏','😭','😤','🥲','🤣','😅','😇','🥳','😏','😒','😡','🤬','🤮','🤑','🥶','👻','💩','🤡','👽','🫶','✊','🫠','🎮','🎵','🍕','🍺','🚀','⭐'];
+const EMOJIS=[
+  // Gesichter
+  '😀','😁','😂','🤣','😃','😄','😅','😆','😇','😈','👿','😉','😊','🥹','😋','😌','😍','🥰','😎','🤩',
+  '🥸','🤔','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮',
+  '🤧','🥵','🥶','🥴','😵','💫','🤯','🤠','🥳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣',
+  '😞','😓','😩','😫','🥱','😤','😡','🤬','😠','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖',
+  // Gesten & Hände
+  '👋','🤚','🖐','✋','🖖','👌','🤌','🤏','✌️','🤞','🫰','🤙','🤘','👈','👉','👆','👇','☝️','👍','👎',
+  '✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🙏','🫱','🫲','💪','🦾','🖕',
+  // Herzen & Symbole
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️',
+  '✝️','☯️','🔥','💥','✨','⭐','🌟','💫','❄️','🌈','☀️','🌙','⚡','🎉','🎊','🎯','🏆','🥇','💯',
+  // Tiere
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐸','🐵','🙈','🙉','🙊','🦄','🐺',
+  '🦝','🦊','🐗','🦋','🐝','🐛','🦎','🐍','🦕','🦖','🦑','🐙','🦀','🦞','🦐','🐡','🐬','🦈','🐳',
+  // Essen
+  '🍕','🍔','🌮','🌯','🍟','🍿','🧂','🥓','🍖','🍗','🥩','🧆','🥚','🍳','🥞','🧇','🥐','🍞','🥨',
+  '🧀','🥗','🥙','🥪','🍱','🍣','🍜','🍝','🍛','🍲','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧃','☕','🧋',
+  // Gaming & Tech
+  '🎮','🕹️','👾','🎲','🎰','🃏','♟️','🎭','🎨','🖥️','💻','📱','⌨️','🖱️','🖨️','📷','📸','🎥','📹','📡',
+  // Misc
+  '💰','💵','💸','🏦','💎','👑','🎩','🕶️','👓','🧢','👒','🎓','🏅','🚀','🛸','🌍','🌊','🏔️','🌋','🎵',
+  '🎶','🎸','🥁','🎺','🎻','🎤','🔊','📢','🔔','🚨','⚠️','✅','❌','❓','❗','💤','🔑','🗝️','🔓','🔒',
+];
 let VOICE_CHANNELS=['Lounge','Gaming VC','Musik VC'];
 const ICE_CFG={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 const DEFAULT_SOUNDS=[
@@ -1208,7 +1231,10 @@ document.getElementById('hangupBtn').onclick=leaveVoice;
 function makePeer(pid){
   if(peerConns[pid]){ try{peerConns[pid].close();}catch{} peerConns[pid]._audioEl?.remove(); delete peerConns[pid]; }
   const pc=new RTCPeerConnection(ICE_CFG);
-  peerConns[pid]=pc; pc._volume=1.0; pc._muted=false;
+  peerConns[pid]=pc;
+  // Gespeicherte Lautstärke wiederherstellen
+  const saved=userVolumes[pid];
+  pc._volume=saved?.vol??1.0; pc._muted=saved?.muted??false;
   if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   pc.onicecandidate=({candidate})=>{ if(candidate) socket.emit('rtc-ice',{targetId:pid,candidate}); };
   pc.onconnectionstatechange=()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState)) cleanPeer(pid); };
@@ -1263,6 +1289,8 @@ function cleanPeer(pid){
 function toggleUserMute(pid,btn){
   const pc=peerConns[pid]; if(!pc) return;
   pc._muted=!pc._muted;
+  if(!userVolumes[pid]) userVolumes[pid]={vol:1.0,muted:false};
+  userVolumes[pid].muted=pc._muted;
   if(pc._gainNode) pc._gainNode.gain.value=pc._muted?0:pc._volume;
   else if(pc._audioEl) pc._audioEl.muted=pc._muted;
   btn.textContent=pc._muted?'🔇':'🔊'; btn.classList.toggle('danger',pc._muted);
@@ -1270,7 +1298,9 @@ function toggleUserMute(pid,btn){
 function setUserVolume(pid,val){
   const pc=peerConns[pid]; if(!pc) return;
   pc._volume=val/100;
-  if(!pc._muted&&pc._gainNode) pc._gainNode.gain.value=pc._volume;
+  if(!userVolumes[pid]) userVolumes[pid]={vol:1.0,muted:false};
+  userVolumes[pid].vol=pc._volume;
+  if(!pc._muted&&pc._gainNode) pc._gainNode.gain.value=pc._volume*masterVolume;
   const lbl=document.getElementById('vl-'+pid); if(lbl) lbl.textContent=Math.round(val)+'%';
 }
 
@@ -1375,11 +1405,7 @@ function renderSoundboard(){
   const g=document.getElementById('sbGrid'); g.innerHTML='';
   DEFAULT_SOUNDS.forEach(s=>{
     const b=mk('button','sb-btn'); b.innerHTML=`<span class="sb-icon">${s.emoji}</span>${esc(s.name)}`;
-    b.onclick=()=>{
-      stopCurrentSound();
-      s.fn();
-      socket?.emit('playSound',{room:myRoom,soundName:s.name,soundData:null});
-    };
+    b.onclick=()=>{ stopCurrentSound(); s.fn(); socket?.emit('playSound',{room:myRoom,soundName:s.name,soundData:null}); };
     g.appendChild(b);
   });
   Object.entries(sounds).forEach(([name,data])=>{
