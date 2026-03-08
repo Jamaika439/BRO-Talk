@@ -111,6 +111,7 @@ io.on('connection', socket => {
     socket.join(room);
     socket.emit('joined', { name, room });
     socket.emit('roomList', db.rooms);
+    socket.emit('voiceChannelList', db.voiceChannels || ['Lounge','Gaming VC','Musik VC']);
     socket.emit('history', getMessages(room));
     broadcastUsers();
     sysMsg(room, `${name} ist beigetreten.`);
@@ -166,6 +167,22 @@ io.on('connection', socket => {
     broadcastRooms();
   });
 
+  socket.on('deleteRoom', ({ name }) => {
+  if(!name || name === 'Allgemein') return;
+  db.rooms = db.rooms.filter(r => r !== name);
+  delete db.messages[name];
+  saveDB(db);
+  broadcastRooms();
+  io.emit('roomDeleted', { name });
+});
+
+socket.on('createVoiceChannel', ({ name }) => {
+  if(!name || db.voiceChannels?.includes(name)) return;
+  if(!db.voiceChannels) db.voiceChannels = ['Lounge','Gaming VC','Musik VC'];
+  db.voiceChannels.push(name);
+  saveDB(db);
+  io.emit('voiceChannelList', db.voiceChannels);
+});
   // ── VOICE ───────────────────────────
   socket.on('joinVoice', ({ room }) => {
     Object.entries(voiceRooms).forEach(([r, members]) => {
