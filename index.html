@@ -497,14 +497,47 @@ const EMOJIS=['😀','😂','🥹','😍','🤩','😎','🥸','🤔','😬','�
 let VOICE_CHANNELS=['Lounge','Gaming VC','Musik VC'];
 const ICE_CFG={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 const DEFAULT_SOUNDS=[
-  {name:'Airhorn',   emoji:'📯', url:'https://cdn.freesound.org/previews/513/513641_4921277-lq.mp3'},
-  {name:'Applaus',   emoji:'👏', url:'https://cdn.freesound.org/previews/531/531513_3797507-lq.mp3'},
-  {name:'Ding',      emoji:'🔔', url:'https://cdn.freesound.org/previews/411/411089_5121236-lq.mp3'},
-  {name:'Lachen',    emoji:'😂', url:'https://cdn.freesound.org/previews/270/270402_5123851-lq.mp3'},
-  {name:'Buh',       emoji:'👎', url:'https://cdn.freesound.org/previews/415/415510_6217651-lq.mp3'},
-  {name:'Trommel',   emoji:'🥁', url:'https://cdn.freesound.org/previews/387/387186_1474-lq.mp3'},
-  {name:'Affe',      emoji:'🐒', url:'https://cdn.freesound.org/previews/196/196992_3797507-lq.mp3'},
+  {name:'Airhorn',  emoji:'📯', fn:playAirhorn},
+  {name:'Applaus',  emoji:'👏', fn:playApplaus},
+  {name:'Ding',     emoji:'🔔', fn:playDing},
+  {name:'Affe',     emoji:'🐒', fn:playAffe},
 ];
+
+function playAirhorn(){
+  const c=new AudioContext(),g=c.createGain();g.gain.setValueAtTime(soundVolume*.9,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+1.5);g.connect(c.destination);
+  [220,277,330,440].forEach((f,i)=>{const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f,c.currentTime);o.frequency.linearRampToValueAtTime(f*1.04,c.currentTime+1.5);o.connect(g);o.start(c.currentTime+i*.01);o.stop(c.currentTime+1.5);});
+  return null;
+}
+function playApplaus(){
+  const c=new AudioContext(),dur=2.0;
+  for(let i=0;i<120;i++){
+    const t=c.currentTime+Math.random()*dur;
+    const b=c.createBufferSource(),buf=c.createBuffer(1,c.sampleRate*.06,c.sampleRate);
+    const d=buf.getChannelData(0);for(let j=0;j<d.length;j++)d[j]=(Math.random()*2-1)*Math.pow(1-j/d.length,2);
+    b.buffer=buf;const g=c.createGain();g.gain.setValueAtTime(soundVolume*.35,t);
+    const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=1200+Math.random()*800;f.Q.value=0.8;
+    b.connect(f);f.connect(g);g.connect(c.destination);b.start(t);
+  }
+  return null;
+}
+function playDing(){
+  const c=new AudioContext(),g=c.createGain();g.gain.setValueAtTime(soundVolume*.7,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+2);g.connect(c.destination);
+  [[880,0],[1760,.01],[2640,.005]].forEach(([f,d])=>{const o=c.createOscillator();o.type='sine';o.frequency.value=f;o.connect(g);o.start(c.currentTime+d);o.stop(c.currentTime+2);});
+  return null;
+}
+function playAffe(){
+  const c=new AudioContext(),g=c.createGain();g.gain.setValueAtTime(soundVolume*.8,c.currentTime);g.connect(c.destination);
+  const notes=[{f:400,t:0,d:.12},{f:600,t:.1,d:.1},{f:800,t:.18,d:.1},{f:700,t:.26,d:.1},{f:900,t:.32,d:.15},{f:1000,t:.42,d:.1},{f:800,t:.5,d:.18},{f:600,t:.62,d:.12},{f:400,t:.72,d:.1},{f:300,t:.8,d:.15}];
+  notes.forEach(({f,t,d})=>{
+    const o=c.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(f,c.currentTime+t);
+    o.frequency.exponentialRampToValueAtTime(f*1.3,c.currentTime+t+d*.5);
+    o.frequency.exponentialRampToValueAtTime(f*.8,c.currentTime+t+d);
+    const og=c.createGain();og.gain.setValueAtTime(.8,c.currentTime+t);og.gain.exponentialRampToValueAtTime(.001,c.currentTime+t+d+.05);
+    o.connect(og);og.connect(g);o.start(c.currentTime+t);o.stop(c.currentTime+t+d+.06);
+  });
+  return null;
+}
 const ACCENT_COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0','#795548','#607d8b'];
 const FONTS=[
   {label:'Segoe UI (Standard)', val:"'Segoe UI',sans-serif"},
@@ -1326,10 +1359,11 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeFullscreen()
 // SOUNDBOARD
 // ══════════════════════════════════════════════════════════
 document.getElementById('sbBtn').onclick=()=>{
-  // Slider auf gespeicherten Wert setzen
   const pct=Math.round(soundVolume*100);
-  document.getElementById('sbVolume').value=pct;
+  const sl=document.getElementById('sbVolume');
+  sl.value=pct;
   document.getElementById('sbVolLabel').textContent=pct+'%';
+  updateSliderFill(sl);
   renderSoundboard();
   document.getElementById('soundModal').classList.add('on');
 };
@@ -1341,7 +1375,11 @@ function renderSoundboard(){
   const g=document.getElementById('sbGrid'); g.innerHTML='';
   DEFAULT_SOUNDS.forEach(s=>{
     const b=mk('button','sb-btn'); b.innerHTML=`<span class="sb-icon">${s.emoji}</span>${esc(s.name)}`;
-    b.onclick=()=>{ stopCurrentSound(); currentSound=new Audio(s.url); currentSound.volume=soundVolume; currentSound.play().catch(()=>{}); socket?.emit('playSound',{room:myRoom,soundName:s.name,soundData:null}); };
+    b.onclick=()=>{
+      stopCurrentSound();
+      s.fn();
+      socket?.emit('playSound',{room:myRoom,soundName:s.name,soundData:null});
+    };
     g.appendChild(b);
   });
   Object.entries(sounds).forEach(([name,data])=>{
