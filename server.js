@@ -33,10 +33,7 @@ function addMessage(room, msg) {
 function getMessages(room) {
   return (db.messages[room] || []).slice(-80);
 }
-
-function dmKey(nameA, nameB) {
-  return [nameA, nameB].sort().join('__DM__');
-}
+function dmKey(nameA, nameB) { return [nameA, nameB].sort().join('__DM__'); }
 function addDM(nameA, nameB, msg) {
   const key = dmKey(nameA, nameB);
   if (!db.dms[key]) db.dms[key] = [];
@@ -44,9 +41,7 @@ function addDM(nameA, nameB, msg) {
   if (db.dms[key].length > 200) db.dms[key] = db.dms[key].slice(-200);
   saveDB(db);
 }
-function getDMs(nameA, nameB) {
-  return (db.dms[dmKey(nameA, nameB)] || []).slice(-100);
-}
+function getDMs(nameA, nameB) { return (db.dms[dmKey(nameA, nameB)] || []).slice(-100); }
 
 const storage = multer.diskStorage({
   destination: uploadsDir,
@@ -60,15 +55,12 @@ const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25
 
 app.use('/uploads', express.static(uploadsDir));
 app.use(express.json());
-
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const host = process.env.APP_URL || `http://localhost:${PORT}`;
   res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
 });
-
 app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
 app.get('/rooms', (req, res) => res.json(db.rooms));
 app.get('/dm-history', (req, res) => {
@@ -77,21 +69,11 @@ app.get('/dm-history', (req, res) => {
   res.json(getDMs(a, b));
 });
 
-const users      = {};
-const voiceRooms = {};
-
-function ts() {
-  return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-}
-function broadcastUsers() {
-  io.emit('userList', Object.entries(users).map(([id, u]) => ({ id, ...u })));
-}
-function broadcastRooms() {
-  io.emit('roomList', db.rooms);
-}
-function sysMsg(room, text) {
-  io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() });
-}
+const users = {}, voiceRooms = {};
+function ts() { return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+function broadcastUsers() { io.emit('userList', Object.entries(users).map(([id, u]) => ({ id, ...u }))); }
+function broadcastRooms() { io.emit('roomList', db.rooms); }
+function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() }); }
 
 io.on('connection', socket => {
   const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 4000);
@@ -110,11 +92,8 @@ io.on('connection', socket => {
   });
 
   socket.on('updateProfile', ({ name, color, avatar }) => {
-    const u = users[socket.id];
-    if (!u) return;
-    if (name)   u.name   = name;
-    if (color)  u.color  = color;
-    if (avatar) u.avatar = avatar;
+    const u = users[socket.id]; if (!u) return;
+    if (name) u.name = name; if (color) u.color = color; if (avatar) u.avatar = avatar;
     broadcastUsers();
     socket.emit('profileUpdated', { name: u.name, color: u.color, avatar: u.avatar });
   });
@@ -124,8 +103,7 @@ io.on('connection', socket => {
   });
 
   socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
-    const u = users[socket.id];
-    if (!u) return;
+    const u = users[socket.id]; if (!u) return;
     const msg = {
       id: Date.now(), user: u.name, userId: socket.id,
       color: u.color, avatar: u.avatar,
@@ -136,9 +114,28 @@ io.on('connection', socket => {
     io.to(room).emit('message', msg);
   });
 
+  // Nachricht löschen
+  socket.on('deleteMessage', ({ room, msgId }) => {
+    const u = users[socket.id]; if (!u) return;
+    if (db.messages[room]) {
+      const msg = db.messages[room].find(m => m.id === msgId);
+      if (msg && (msg.userId === socket.id || msg.user === u.name)) {
+        db.messages[room] = db.messages[room].filter(m => m.id !== msgId);
+        saveDB(db);
+        io.to(room).emit('messageDeleted', { msgId });
+      }
+    }
+  });
+
+  // Chat leeren
+  socket.on('clearChat', ({ room }) => {
+    db.messages[room] = [];
+    saveDB(db);
+    io.to(room).emit('chatCleared', { room });
+  });
+
   socket.on('changeRoom', ({ newRoom }) => {
-    const u = users[socket.id];
-    if (!u) return;
+    const u = users[socket.id]; if (!u) return;
     sysMsg(u.room, `${u.name} hat den Raum verlassen.`);
     socket.leave(u.room);
     u.room = newRoom;
@@ -151,9 +148,7 @@ io.on('connection', socket => {
 
   socket.on('createRoom', ({ name }) => {
     if (!name || db.rooms.includes(name)) return;
-    db.rooms.push(name);
-    saveDB(db);
-    broadcastRooms();
+    db.rooms.push(name); saveDB(db); broadcastRooms();
   });
 
   socket.on('deleteRoom', ({ name }) => {
@@ -167,8 +162,7 @@ io.on('connection', socket => {
 
   socket.on('createVoiceChannel', ({ name }) => {
     if (!name || db.voiceChannels.includes(name)) return;
-    db.voiceChannels.push(name);
-    saveDB(db);
+    db.voiceChannels.push(name); saveDB(db);
     io.emit('voiceChannelList', db.voiceChannels);
   });
 
@@ -185,9 +179,7 @@ io.on('connection', socket => {
     voiceRooms[room].add(socket.id);
     if (users[socket.id]) users[socket.id].inVoice = true;
     socket.emit('voicePeers', { peers, room });
-    peers.forEach(pid => io.to(pid).emit('voicePeerJoined', {
-      peerId: socket.id, name: users[socket.id]?.name
-    }));
+    peers.forEach(pid => io.to(pid).emit('voicePeerJoined', { peerId: socket.id, name: users[socket.id]?.name }));
     broadcastUsers();
   });
 
@@ -209,10 +201,7 @@ io.on('connection', socket => {
   socket.on('playSound', ({ room, soundName, soundData }) => {
     socket.to(room).emit('playSound', { soundName, soundData, fromName: users[socket.id]?.name });
   });
-
-  socket.on('stopSound', ({ room }) => {
-    socket.to(room).emit('stopSound');
-  });
+  socket.on('stopSound', ({ room }) => socket.to(room).emit('stopSound'));
 
   socket.on('typing', ({ room }) => {
     const u = users[socket.id];
@@ -220,31 +209,21 @@ io.on('connection', socket => {
   });
 
   socket.on('privateMessage', ({ targetId, text }) => {
-    const sender   = users[socket.id];
-    const receiver = users[targetId];
+    const sender = users[socket.id], receiver = users[targetId];
     if (!sender) return;
-    const msg = {
-      fromId:   socket.id,
-      fromName: sender.name,
-      targetId,
-      text,
-      timestamp: ts()
-    };
+    const msg = { fromId: socket.id, fromName: sender.name, targetId, text, timestamp: ts() };
     if (receiver) addDM(sender.name, receiver.name, msg);
     io.to(targetId).emit('privateMessage', { ...msg, toSelf: false });
     socket.emit('privateMessage', { ...msg, toSelf: true });
   });
 
   socket.on('getDmHistory', ({ targetName }) => {
-    const me = users[socket.id];
-    if (!me || !targetName) return;
-    const history = getDMs(me.name, targetName);
-    socket.emit('dmHistory', { targetName, messages: history });
+    const me = users[socket.id]; if (!me || !targetName) return;
+    socket.emit('dmHistory', { targetName, messages: getDMs(me.name, targetName) });
   });
 
   socket.on('privateCall', ({ targetId }) => {
-    const caller = users[socket.id];
-    if (!caller) return;
+    const caller = users[socket.id]; if (!caller) return;
     io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
   });
   socket.on('privateCallAccept', ({ targetId }) => io.to(targetId).emit('privateCallAccepted', { fromId: socket.id }));
