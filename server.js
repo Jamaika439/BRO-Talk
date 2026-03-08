@@ -60,6 +60,8 @@ const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25
 app.use('/uploads', express.static(uploadsDir));
 app.use(express.json());
 
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const host = process.env.APP_URL || `http://localhost:${PORT}`;
