@@ -240,7 +240,7 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
   <div class="srv-hdr">👾 Bro Talk</div>
   <div class="sec-lbl">Räume <button id="addRoomBtn">＋</button></div>
   <div id="roomList"></div>
-  <div class="sec-lbl" style="margin-top:6px">Sprachkanäle <button id="addVoiceBtn">＋</button></div>
+  <div class="sec-lbl" style="margin-top:6px">Sprachkanäle</div>
   <div id="voiceList"></div>
   <div class="sec-lbl" style="margin-top:6px">Online</div>
   <div id="userList"></div>
@@ -293,7 +293,7 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);d
 const AVATARS=['😎','🐱','🦊','🐼','🦁','🐸','👾','🤖','🦄','🐺','🎃','💀'];
 const COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0'];
 const EMOJIS=['😀','😂','🥹','😍','🤩','😎','🥸','🤔','😬','🙄','😴','🤯','🔥','💯','✅','❤️','💀','👏','🎉','👀','🫡','💪','🤝','👋','🙏','😭','😤','🥲','🤣','😅','😇','🥳','😏','😒','😡','🤬','🤮','🤑','🥶','👻','💩','🤡','👽','🫶','✊','🫠','🎮','🎵','🍕','🍺','🚀','⭐'];
-let VOICE_CHANNELS=['Lounge','Gaming VC','Musik VC'];
+const VOICE_CHANNELS=['Lounge','Gaming VC','Musik VC'];
 const ICE_CFG={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 const DEFAULT_SOUNDS=[
   {name:'Airhorn',emoji:'📯',url:'https://www.soundjay.com/misc/sounds/fail-buzzer-01.mp3'},
@@ -418,10 +418,6 @@ function doJoin(){
     showSoundToast(`🎵 ${fromName}: ${soundName}`);
   });
   socket.on('stopSound',()=>stopCurrentSound());
-  socket.on('roomDeleted',({name})=>{
-    if(myRoom===name) switchRoom('Allgemein');
-  });
-  socket.on('voiceChannelList',list=>{ VOICE_CHANNELS=list; renderVoiceList(); });
   socket.on('connect_error',()=>console.warn('Verbindungsfehler – versuche erneut...'));
 }
 
@@ -435,23 +431,15 @@ function renderRoomList(rooms){
   const el=document.getElementById('roomList'); el.innerHTML='';
   rooms.forEach(r=>{
     const d=document.createElement('div'); d.className='room-item'+(r===myRoom?' active':'');
-    d.innerHTML=`<span class="room-dot"></span><span style="flex:1">${esc(r)}</span>`;
-    d.onclick=()=>switchRoom(r);
-    if(r!=='Allgemein'){
-      const x=document.createElement('button');
-      x.textContent='✕'; x.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;padding:0 4px;font-size:.75rem;opacity:0;transition:.15s';
-      x.onclick=e=>{ e.stopPropagation(); if(confirm(`Raum "${r}" löschen?`)) socket.emit('deleteRoom',{name:r}); };
-      d.onmouseenter=()=>x.style.opacity='1'; d.onmouseleave=()=>x.style.opacity='0';
-      d.appendChild(x);
-    }
-    el.appendChild(d);
+    d.innerHTML=`<span class="room-dot"></span>${esc(r)}`;
+    d.onclick=()=>switchRoom(r); el.appendChild(d);
   });
 }
 function renderVoiceList(){
   const el=document.getElementById('voiceList'); el.innerHTML='';
   VOICE_CHANNELS.forEach(vc=>{
     const d=document.createElement('div'); d.className='voice-ch'+(vc===currentVoiceRoom?' active':'');
-    d.innerHTML=`🔈 <span style="flex:1">${esc(vc)}</span>`; d.onclick=()=>joinVoice(vc); el.appendChild(d);
+    d.innerHTML=`🔈 ${esc(vc)}`; d.onclick=()=>joinVoice(vc); el.appendChild(d);
   });
 }
 function switchRoom(r){ if(r===myRoom) return; socket.emit('changeRoom',{newRoom:r}); myRoom=r; }
@@ -996,11 +984,6 @@ document.getElementById('toastRej').onclick=()=>{
   document.getElementById('callToast').classList.remove('on');
   if(!pendingCallFrom) return;
   socket.emit('privateCallReject',{targetId:pendingCallFrom}); pendingCallFrom=null;
-};
-
-document.getElementById('addVoiceBtn').onclick=()=>{
-  const name=prompt('Name des Sprachkanals:'); if(!name?.trim()) return;
-  socket.emit('createVoiceChannel',{name:name.trim()});
 };
 
 function initDmDrag(){

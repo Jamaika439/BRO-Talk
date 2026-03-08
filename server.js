@@ -5,7 +5,7 @@ const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 
-const PORT    = process.env.PORT || 3000;
+const PORT       = process.env.PORT || 3000;
 const dataDir    = path.join(__dirname, 'data');
 const uploadsDir = path.join(dataDir, 'uploads');
 const dbFile     = path.join(dataDir, 'db.json');
@@ -14,7 +14,7 @@ const dbFile     = path.join(dataDir, 'db.json');
 
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
-  catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {} }; }
+  catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {}, voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'] }; }
 }
 function saveDB(db) {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
@@ -22,6 +22,7 @@ function saveDB(db) {
 
 let db = loadDB();
 if (!db.dms) { db.dms = {}; saveDB(db); }
+if (!db.voiceChannels) { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
 
 function addMessage(room, msg) {
   if (!db.messages[room]) db.messages[room] = [];
@@ -103,6 +104,7 @@ io.on('connection', socket => {
     socket.emit('joined', { name, room });
     socket.emit('roomList', db.rooms);
     socket.emit('history', getMessages(room));
+    socket.emit('voiceChannelList', db.voiceChannels);
     broadcastUsers();
     sysMsg(room, `${name} ist beigetreten.`);
   });
@@ -154,6 +156,22 @@ io.on('connection', socket => {
     broadcastRooms();
   });
 
+  socket.on('deleteRoom', ({ name }) => {
+    if (!name || name === 'Allgemein') return;
+    db.rooms = db.rooms.filter(r => r !== name);
+    delete db.messages[name];
+    saveDB(db);
+    broadcastRooms();
+    io.emit('roomDeleted', { name });
+  });
+
+  socket.on('createVoiceChannel', ({ name }) => {
+    if (!name || db.voiceChannels.includes(name)) return;
+    db.voiceChannels.push(name);
+    saveDB(db);
+    io.emit('voiceChannelList', db.voiceChannels);
+  });
+
   socket.on('joinVoice', ({ room }) => {
     Object.entries(voiceRooms).forEach(([r, members]) => {
       if (r !== room && members.has(socket.id)) {
@@ -190,6 +208,10 @@ io.on('connection', socket => {
 
   socket.on('playSound', ({ room, soundName, soundData }) => {
     socket.to(room).emit('playSound', { soundName, soundData, fromName: users[socket.id]?.name });
+  });
+
+  socket.on('stopSound', ({ room }) => {
+    socket.to(room).emit('stopSound');
   });
 
   socket.on('typing', ({ room }) => {
