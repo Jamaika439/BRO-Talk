@@ -1,4 +1,3 @@
-
 const express  = require('express');
 const http     = require('http');
 const { Server } = require('socket.io');
@@ -6,27 +5,19 @@ const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 
-const PORT       = process.env.PORT || 3000;
-const IS_CLOUD = !!process.env.IS_CLOUD; // Leapcell setzt automatisch Umgebungsvariablen
+const PORT    = process.env.PORT || 3000;
+const dataDir    = path.join(__dirname, 'data');
+const uploadsDir = path.join(dataDir, 'uploads');
+const dbFile     = path.join(dataDir, 'db.json');
 
-// Uploads nur lokal speichern, in Cloud in /tmp
-const uploadsDir = IS_CLOUD
-  ? '/tmp/uploads'
-  : path.join(__dirname, 'data', 'uploads');
-
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-// DB: in Cloud nur im RAM, lokal auf Disk
-const dbFile = IS_CLOUD ? null : path.join(__dirname, 'data', 'db.json');
+[dataDir, uploadsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
 function loadDB() {
-  if (!dbFile) return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {} };
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
   catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {} }; }
 }
 function saveDB(db) {
-  if (!dbFile) return; // In Cloud nicht speichern
-  try { fs.writeFileSync(dbFile, JSON.stringify(db, null, 2)); } catch {}
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
 let db = loadDB();
@@ -249,5 +240,3 @@ io.on('connection', socket => {
 });
 
 server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));
-
->>>>>>> 5ae885dfeba4f507e81ffc4d49fabfd37166bf37
