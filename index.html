@@ -1300,7 +1300,7 @@ function setUserVolume(pid,val){
   pc._volume=val/100;
   if(!userVolumes[pid]) userVolumes[pid]={vol:1.0,muted:false};
   userVolumes[pid].vol=pc._volume;
-  if(!pc._muted&&pc._gainNode) pc._gainNode.gain.value=pc._volume;
+  if(!pc._muted&&pc._gainNode) pc._gainNode.gain.value=pc._volume*masterVolume;
   const lbl=document.getElementById('vl-'+pid); if(lbl) lbl.textContent=Math.round(val)+'%';
 }
 
@@ -1311,18 +1311,41 @@ document.getElementById('shareBtn').onclick=()=>{
   if(!currentVoiceRoom){ alert('Erst Sprachkanal beitreten!'); return; }
   shareStream ? stopShare() : startBrowserShare();
 };
-async function startBrowserShare(){
-  try{ shareStream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60},audio:false}); }
-  catch(e){ alert('Screenshare: '+e.message); return; }
+document.getElementById('switchShareBtn').onclick=()=>startBrowserShare(true);
+
+async function startBrowserShare(switching=false){
+  let newStream;
+  try{
+    newStream=await navigator.mediaDevices.getDisplayMedia({
+      video:{frameRate:60,cursor:'always'},
+      audio:false
+    });
+  }catch(e){
+    // User hat abgebrochen – laufenden Stream NICHT stoppen
+    return;
+  }
+
+  // Alten Stream stoppen (aber erst nachdem neuer erfolgreich ist)
+  if(shareStream) shareStream.getTracks().forEach(t=>t.stop());
+  shareStream=newStream;
+
   const vt=shareStream.getVideoTracks()[0];
   buildShareTile(shareStream);
   document.getElementById('shareBtn').classList.add('active');
+  document.getElementById('switchShareBtn').style.display='';
+
   for(const [pid,pc] of Object.entries(peerConns)){
     const sender=pc.getSenders().find(s=>s.track?.kind==='video');
-    if(sender){ await sender.replaceTrack(vt).catch(()=>{}); await setMaxBitrate(sender,15000); }
-    else{
+    if(sender){
+      await sender.replaceTrack(vt).catch(()=>{});
+      await setMaxBitrate(sender,15000);
+    } else {
       pc.addTrack(vt,shareStream);
-      try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); socket.emit('rtc-offer',{targetId:pid,offer:pc.localDescription}); setTimeout(async()=>{ const s=pc.getSenders().find(s=>s.track?.kind==='video'); if(s) await setMaxBitrate(s,15000); },2000); }catch{}
+      try{
+        const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+        socket.emit('rtc-offer',{targetId:pid,offer:pc.localDescription});
+        setTimeout(async()=>{ const s=pc.getSenders().find(s=>s.track?.kind==='video'); if(s) await setMaxBitrate(s,15000); },2000);
+      }catch{}
     }
   }
   vt.onended=stopShare;
@@ -1550,8 +1573,8 @@ document.getElementById('masterVolSlider').oninput=function(){
 };
 
 function applyMasterVolume(){
-  Object.entries(peerConns).forEach(([pid,pc])=>{
-    if(pc._gainNode) pc._gainNode.gain.value=pc._muted?0:pc._volume*masterVolume;
+  Object.values(peerConns).forEach(pc=>{
+    if(pc._gainNode) pc._gainNode.gain.value=(pc._muted?0:pc._volume)*masterVolume;
   });
 }
 
