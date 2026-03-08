@@ -780,7 +780,8 @@ async function sendPastedImage(){
   try{
     const r=await fetch(`${serverUrl}/upload`,{method:'POST',body:fd});
     const {url}=await r.json();
-    socket.emit('message',{text:url,room:myRoom,type:'image',fileUrl:url,fileName:'clipboard.png'});
+    const fixedUrl=url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/,serverUrl);
+    socket.emit('message',{text:fixedUrl,room:myRoom,type:'image',fileUrl:fixedUrl,fileName:'clipboard.png'});
   }catch(e){ alert('Upload fehler: '+e.message); }
   pasteBlob=null;
 }
@@ -952,8 +953,10 @@ document.getElementById('fileIn').onchange=async function(){
   try{
     const r=await fetch(`${serverUrl}/upload`,{method:'POST',body:fd});
     const {url,name}=await r.json();
+    // Fix: falls Server localhost zurückgibt, durch serverUrl ersetzen
+    const fixedUrl=url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/,serverUrl);
     const isImg=/\.(png|jpe?g|gif|webp|svg)$/i.test(name);
-    socket.emit('message',{text:url,room:myRoom,type:isImg?'image':'file',fileUrl:url,fileName:name});
+    socket.emit('message',{text:fixedUrl,room:myRoom,type:isImg?'image':'file',fileUrl:fixedUrl,fileName:name});
   }catch(e){ alert('Upload fehler: '+e.message); }
   this.value='';
 };
