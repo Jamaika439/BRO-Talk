@@ -380,7 +380,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 
 <!-- TOASTS & OVERLAYS -->
 <div id="soundToast"></div>
-<div id="lightbox"><img id="lbImg" src="" alt=""/></div>
+<div id="lightbox" oncontextmenu="return false"><img id="lbImg" src="" alt="" style="pointer-events:none"/></div>
 <div id="fsOverlay">
   <div id="fsBar">
     <span id="fsLabel" style="color:#fff;font-weight:600;font-size:.9rem"></span>
@@ -549,6 +549,11 @@ let dmTarget=null,dmUnread={},pendingCallFrom=null;
 let sounds={};
 try{ sounds=JSON.parse(localStorage.getItem('brotalk_sounds')||'{}'); }catch{}
 let currentSound=null,soundVolume=1.0;
+// Gespeicherte Lautstärke laden
+try{
+  const sv=localStorage.getItem('brotalk_soundvolume');
+  if(sv!==null) soundVolume=parseFloat(sv);
+}catch{}
 let gifSrc='giphy';
 let pasteBlob=null;
 
@@ -910,7 +915,7 @@ function renderMsg(m,scroll=false){
   } else {
     const txt=m.content||m.text||'';
     let body='';
-    if(m.type==='image') body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<a class=msg-file href=\\'${esc(txt)}\\' download target=\\'_blank\\'>📎 Bild laden fehlgeschlagen – direkt öffnen</a>')">`;
+    if(m.type==='image') body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<a class=msg-file href=\\'${esc(txt)}\\' target=\\'_blank\\'>📎 Bild laden fehlgeschlagen – direkt öffnen</a>')" oncontextmenu="return false">`;
     else if(m.type==='file') body=`<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName||'Datei')}">📎 ${esc(m.fileName||'Datei')}</a>`;
     else body=`<span class="msg-text">${linkify(esc(txt))}</span>`;
     const d=mk('div','msg-row'); d.dataset.id=m.id;
@@ -1316,7 +1321,14 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeFullscreen()
 // ══════════════════════════════════════════════════════════
 // SOUNDBOARD
 // ══════════════════════════════════════════════════════════
-document.getElementById('sbBtn').onclick=()=>{ renderSoundboard(); document.getElementById('soundModal').classList.add('on'); };
+document.getElementById('sbBtn').onclick=()=>{
+  // Slider auf gespeicherten Wert setzen
+  const pct=Math.round(soundVolume*100);
+  document.getElementById('sbVolume').value=pct;
+  document.getElementById('sbVolLabel').textContent=pct+'%';
+  renderSoundboard();
+  document.getElementById('soundModal').classList.add('on');
+};
 document.getElementById('closeSounds').onclick=()=>document.getElementById('soundModal').classList.remove('on');
 document.getElementById('sbVolume').oninput=function(){ soundVolume=this.value/100; document.getElementById('sbVolLabel').textContent=this.value+'%'; if(currentSound) currentSound.volume=soundVolume; };
 document.getElementById('sbStopBtn').onclick=()=>{ stopCurrentSound(); socket?.emit('stopSound',{room:myRoom}); };
