@@ -117,8 +117,8 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 
 /* INPUT */
 #inputWrap{padding:0 16px 14px;position:relative;flex-shrink:0}
-#inputBar{display:flex;align-items:flex-end;background:var(--bg4);border-radius:10px;padding:4px 4px 4px 8px;gap:4px}
-#msgInput{flex:1;background:none;border:none;color:var(--text);font-size:.93rem;padding:8px 6px;resize:none;max-height:120px;line-height:1.4;min-height:20px;font-family:var(--font)}
+#inputBar{display:flex;align-items:flex-end;background:var(--bg4);border-radius:10px;padding:4px 4px 4px 8px;gap:4px;-webkit-user-select:text;user-select:text}
+#msgInput{flex:1;background:none;border:none;color:var(--text);font-size:.93rem;padding:8px 6px;resize:none;max-height:120px;line-height:1.4;min-height:20px;font-family:var(--font);-webkit-user-select:text;user-select:text}
 #msgInput:focus{outline:none}#msgInput::placeholder{color:var(--muted)}
 .ib-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px 8px;border-radius:6px;font-size:1.1rem;line-height:1;flex-shrink:0}
 .ib-btn:hover{color:var(--text);background:var(--bg3)}
@@ -909,8 +909,8 @@ function renderMsg(m,scroll=false){
   } else {
     const txt=m.content||m.text||'';
     let body='';
-    if(m.type==='image') body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy">`;
-    else if(m.type==='file') body=`<a class="msg-file" href="${esc(txt)}" target="_blank">📎 ${esc(m.fileName||'Datei')}</a>`;
+    if(m.type==='image') body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<a class=msg-file href=\\'${esc(txt)}\\' download target=\\'_blank\\'>📎 Bild laden fehlgeschlagen – direkt öffnen</a>')">`;
+    else if(m.type==='file') body=`<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName||'Datei')}">📎 ${esc(m.fileName||'Datei')}</a>`;
     else body=`<span class="msg-text">${linkify(esc(txt))}</span>`;
     const d=mk('div','msg-row'); d.dataset.id=m.id;
     d.innerHTML=`
