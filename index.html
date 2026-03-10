@@ -688,8 +688,10 @@ const SOUND_DEFS_SB=[
   {name:'Nein',     emoji:'🇩🇪', freq:320, dur:0.4, type:'sawtooth', vol:0.5},
   {name:'Rizz',     emoji:'😎', freq:523, dur:0.5, type:'sine',     vol:0.5},
 ];
-// Generate all default sounds
+// Generate all default sounds eagerly so they're ready to play
 SOUND_DEFS_SB.forEach(s=>{SOUND_DATA[s.name]=generateToneBase64(s.freq,s.dur,s.type,s.vol);});
+// Pre-warm Audio so first play isn't blocked
+function prewarmAudio(){try{const a=new AudioContext();a.close();}catch{}}
 
 const ACCENT_COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0','#795548','#607d8b'];
 const FONTS=[
@@ -1334,67 +1336,104 @@ async function setupAudioProcessing(stream){
   const src=audioCtx.createMediaStreamSource(stream);
   localGainNode=audioCtx.createGain();
   localGainNode.gain.value=micMuted?0:micGain;
+  src.connect(localGainNode); // connect source to gain
 
   const effectiveNsMode=nsEnabled?nsMode:'off';
   const dest=audioCtx.createMediaStreamDestination();
 
-  // Always apply noise gate if enabled (regardless of NS mode)
-  let chain=src.connect(localGainNode);
-
-  if(effectiveNsMode==='off'&&!noiseGateEnabled&&!voiceIsolationEnabled){
-    chain.connect(dest);return dest.stream;
+  // Helper: build a chain from an array of nodes
+  function chain(nodes){
+    for(let i=0;i<nodes.length-1;i++)nodes[i].connect(nodes[i+1]);
+    return nodes[nodes.length-1];
   }
 
-  const notch=audioCtx.createBiquadFilter();notch.type='notch';notch.frequency.value=50;notch.Q.value=10;
-  const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.Q.value=0.7;
-  const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.Q.value=0.5;
-  const comp=audioCtx.createDynamicsCompressor();comp.knee.value=10;comp.ratio.value=3;comp.attack.value=0.003;comp.release.value=0.15;
-  const lim=audioCtx.createDynamicsCompressor();lim.knee.value=0;lim.ratio.value=20;lim.attack.value=0.001;lim.release.value=0.05;
-  const outGain=audioCtx.createGain();outGain.gain.value=0.95;
+  // ── Base filter set shared by all modes ──
+  // 50 Hz hum notch (power line)
+  const notch=audioCtx.createBiquadFilter();notch.type='notch';notch.frequency.value=50;notch.Q.value=8;
+  // 100 Hz hum notch (harmonic)
+  const notch2=audioCtx.createBiquadFilter();notch2.type='notch';notch2.frequency.value=100;notch2.Q.value=6;
 
-  // Voice isolation: narrow the frequency band to voice range
+  // Output gain
+  const outGain=audioCtx.createGain();outGain.gain.value=1.0;
+
+  let lastNode=localGainNode;
+
+  if(effectiveNsMode==='off'&&!voiceIsolationEnabled&&!noiseGateEnabled){
+    lastNode.connect(dest);return dest.stream;
+  }
+
+  // Voice Isolation (narrow to speech band, gentle slopes)
   if(voiceIsolationEnabled){
-    const viHp=audioCtx.createBiquadFilter();viHp.type='highpass';viHp.frequency.value=300;viHp.Q.value=0.5;
-    const viLp=audioCtx.createBiquadFilter();viLp.type='lowpass';viLp.frequency.value=3400;viLp.Q.value=0.5;
-    chain=chain.connect(viHp).connect(viLp);
+    const viHp=audioCtx.createBiquadFilter();viHp.type='highpass';viHp.frequency.value=200;viHp.Q.value=0.4;
+    const viLp=audioCtx.createBiquadFilter();viLp.type='lowpass';viLp.frequency.value=8000;viLp.Q.value=0.4;
+    lastNode=chain([lastNode,viHp,viLp]);
   }
 
   if(effectiveNsMode==='browser'){
-    hp.frequency.value=80;lp.frequency.value=8000;comp.threshold.value=-20;lim.threshold.value=-1;
-    chain=chain.connect(notch).connect(hp).connect(lp).connect(comp).connect(lim).connect(outGain);
+    // Light: just hum removal + gentle HP/LP + mild compression
+    const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=80;hp.Q.value=0.5;
+    const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=10000;lp.Q.value=0.5;
+    const comp=audioCtx.createDynamicsCompressor();
+    comp.threshold.value=-28;comp.knee.value=12;comp.ratio.value=2;comp.attack.value=0.01;comp.release.value=0.25;
+    outGain.gain.value=1.0;
+    lastNode=chain([lastNode,notch,notch2,hp,lp,comp,outGain]);
+
   }else if(effectiveNsMode==='basic'){
-    hp.frequency.value=100;lp.frequency.value=7500;
-    const presence=audioCtx.createBiquadFilter();presence.type='peaking';presence.frequency.value=2800;presence.Q.value=0.8;presence.gain.value=4;
-    comp.threshold.value=-24;lim.threshold.value=-2;
-    chain=chain.connect(notch).connect(hp).connect(lp).connect(presence).connect(comp).connect(lim).connect(outGain);
+    // Recommended: removes low-freq rumble + keyboard range reduced, preserves voice
+    const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=120;hp.Q.value=0.6;
+    const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=9000;lp.Q.value=0.5;
+    // Slight cut in the keyboard click range ~3-4kHz
+    const kbCut=audioCtx.createBiquadFilter();kbCut.type='peaking';kbCut.frequency.value=3500;kbCut.Q.value=1.2;kbCut.gain.value=-6;
+    // Presence boost for voice clarity
+    const presence=audioCtx.createBiquadFilter();presence.type='peaking';presence.frequency.value=2200;presence.Q.value=0.9;presence.gain.value=3;
+    const comp=audioCtx.createDynamicsCompressor();
+    comp.threshold.value=-26;comp.knee.value=10;comp.ratio.value=3;comp.attack.value=0.005;comp.release.value=0.2;
+    const lim=audioCtx.createDynamicsCompressor();
+    lim.threshold.value=-3;lim.knee.value=0;lim.ratio.value=15;lim.attack.value=0.001;lim.release.value=0.08;
+    outGain.gain.value=0.95;
+    lastNode=chain([lastNode,notch,notch2,hp,lp,kbCut,presence,comp,lim,outGain]);
+
   }else if(effectiveNsMode==='aggressive'){
-    hp.frequency.value=180;lp.frequency.value=6000;
-    const mid=audioCtx.createBiquadFilter();mid.type='peaking';mid.frequency.value=2000;mid.Q.value=1.2;mid.gain.value=6;
-    const comp2=audioCtx.createDynamicsCompressor();comp2.threshold.value=-18;comp2.knee.value=6;comp2.ratio.value=8;comp2.attack.value=0.001;comp2.release.value=0.08;
-    comp.threshold.value=-30;lim.threshold.value=-1;outGain.gain.value=0.85;
-    chain=chain.connect(notch).connect(hp).connect(lp).connect(mid).connect(comp).connect(comp2).connect(lim).connect(outGain);
+    // Strong: tight voice band, heavy keyboard suppression, heavy compression
+    // Voice band: 180 Hz – 7000 Hz
+    const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=180;hp.Q.value=0.7;
+    const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=7000;lp.Q.value=0.6;
+    // Strong keyboard/click cut at 3-5kHz
+    const kbCut=audioCtx.createBiquadFilter();kbCut.type='peaking';kbCut.frequency.value=4000;kbCut.Q.value=1.5;kbCut.gain.value=-12;
+    const kbCut2=audioCtx.createBiquadFilter();kbCut2.type='peaking';kbCut2.frequency.value=3000;kbCut2.Q.value=1.2;kbCut2.gain.value=-8;
+    // Voice boost
+    const vBoost=audioCtx.createBiquadFilter();vBoost.type='peaking';vBoost.frequency.value=1800;vBoost.Q.value=1.0;vBoost.gain.value=5;
+    // Heavy compression
+    const comp=audioCtx.createDynamicsCompressor();
+    comp.threshold.value=-30;comp.knee.value=6;comp.ratio.value=6;comp.attack.value=0.003;comp.release.value=0.15;
+    const comp2=audioCtx.createDynamicsCompressor();
+    comp2.threshold.value=-20;comp2.knee.value=4;comp2.ratio.value=10;comp2.attack.value=0.001;comp2.release.value=0.08;
+    const lim=audioCtx.createDynamicsCompressor();
+    lim.threshold.value=-2;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=0.001;lim.release.value=0.05;
+    outGain.gain.value=0.85;
+    lastNode=chain([lastNode,notch,notch2,hp,lp,kbCut,kbCut2,vBoost,comp,comp2,lim,outGain]);
   }
 
-  // Noise Gate (ScriptProcessor for gating based on level)
+  // ── Noise Gate (after all NS processing) ──
   if(noiseGateEnabled){
-    const analyserNG=audioCtx.createAnalyser();analyserNG.fftSize=256;
+    const analyserNG=audioCtx.createAnalyser();analyserNG.fftSize=512;
     const gateGain=audioCtx.createGain();gateGain.gain.value=1.0;
-    chain.connect(analyserNG);
+    lastNode.connect(analyserNG);
     analyserNG.connect(gateGain).connect(dest);
     const ngBuf=new Uint8Array(analyserNG.frequencyBinCount);
-    let gateOpen=true;
+    let gateOpen=true,holdFrames=0;
+    const HOLD=6; // hold gate open N frames after signal drops (avoid clipping words)
     const ngInterval=setInterval(()=>{
       if(!audioCtx||audioCtx.state==='closed'){clearInterval(ngInterval);return;}
       analyserNG.getByteFrequencyData(ngBuf);
       const avg=ngBuf.reduce((a,b)=>a+b,0)/ngBuf.length/128;
-      const shouldOpen=avg>noiseGateThreshold;
-      if(shouldOpen!==gateOpen){
-        gateOpen=shouldOpen;
-        gateGain.gain.setTargetAtTime(gateOpen?1.0:0.0,audioCtx.currentTime,0.02);
-      }
-    },50);
+      if(avg>noiseGateThreshold){gateOpen=true;holdFrames=HOLD;}
+      else if(holdFrames>0){holdFrames--;gateOpen=true;}
+      else{gateOpen=false;}
+      gateGain.gain.setTargetAtTime(gateOpen?1.0:0.001,audioCtx.currentTime,0.015);
+    },30);
   }else{
-    chain.connect(dest);
+    lastNode.connect(dest);
   }
 
   return dest.stream;
@@ -1576,15 +1615,13 @@ function closeStreamPicker(){
   document.getElementById('streamPickerModal').classList.remove('on');
 }
 async function confirmStreamPicker(){
-  // Start the actual stream on confirm (not during preview selection)
   const camId=document.getElementById('spCamSelect').value;
   let stream=null;
   try{
     if(spMode==='screen'){
-      // getDisplayMedia opens the browser's own screen/window picker
       stream=await navigator.mediaDevices.getDisplayMedia({
         video:{frameRate:{ideal:30},cursor:'motion'},
-        audio:{echoCancellation:false,noiseSuppression:false,sampleRate:48000}
+        audio:true   // browser shows "share system audio" checkbox natively
       });
     }else if(spMode==='cam'){
       stream=await navigator.mediaDevices.getUserMedia({
@@ -1592,10 +1629,9 @@ async function confirmStreamPicker(){
         audio:false
       });
     }else{
-      // Both: screen + camera PiP via canvas composite
       const screenStream=await navigator.mediaDevices.getDisplayMedia({
         video:{frameRate:{ideal:30},cursor:'motion'},
-        audio:{echoCancellation:false,noiseSuppression:false}
+        audio:true
       });
       const camS=await navigator.mediaDevices.getUserMedia({
         video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:320},height:{ideal:180}},
@@ -1603,13 +1639,13 @@ async function confirmStreamPicker(){
       });
       stream=await createCompositeStream(screenStream,camS);
     }
-  }catch(e){alert('Stream-Fehler: '+e.message);return;}
-  closeStreamPicker();
-  if(spMode==='cam'){
-    await applyCamStream(stream);
-  }else{
-    await applyShareStream(stream);
+  }catch(e){
+    if(e.name!=='NotAllowedError')alert('Stream-Fehler: '+e.message);
+    return;
   }
+  closeStreamPicker();
+  if(spMode==='cam'){await applyCamStream(stream);}
+  else{await applyShareStream(stream);}
 }
 async function createCompositeStream(screenStream,camStream2){
   const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;
@@ -1826,8 +1862,30 @@ document.getElementById('sbUpload').onchange=function(){
   const file=this.files[0];if(!file)return;
   const r=new FileReader();r.onload=e=>{sounds[file.name]=e.target.result;localStorage.setItem('brotalk_sounds',JSON.stringify(sounds));renderSoundboard();};r.readAsDataURL(file);this.value='';
 };
-function playBase64(data){if(!data)return null;const a=new Audio(data);a.volume=soundVolume;a.play().catch(()=>{});return a;}
-function playBase64Vol(data){if(!data)return null;const a=new Audio(data);a.volume=soundVolume;a.play().catch(()=>{});return a;}
+function playBase64(data){
+  if(!data)return null;
+  try{
+    // Use AudioContext for reliable local playback (bypasses autoplay block)
+    const ac=new AudioContext();
+    const b64=data.split(',')[1];
+    const raw=atob(b64);
+    const buf=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)buf[i]=raw.charCodeAt(i);
+    ac.decodeAudioData(buf.buffer,decoded=>{
+      const src=ac.createBufferSource();
+      const gain=ac.createGain();gain.gain.value=soundVolume;
+      src.buffer=decoded;src.connect(gain);gain.connect(ac.destination);
+      src.start(0);
+      src.onended=()=>ac.close();
+    });
+    // Return a fake "stoppable" handle
+    return {pause:()=>{try{ac.close();}catch{}},currentTime:0,_ac:ac};
+  }catch(e){
+    // Fallback: HTML Audio
+    const a=new Audio(data);a.volume=soundVolume;a.play().catch(()=>{});return a;
+  }
+}
+function playBase64Vol(data){return playBase64(data);}
 function showSoundToast(msg){const t=document.getElementById('soundToast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);}
 
 // ═══════════════════════════════════════════
