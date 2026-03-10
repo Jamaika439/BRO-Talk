@@ -21,19 +21,20 @@ function createWindow() {
     title: 'Bro Talk'
   });
 
+  // Alle Permissions erlauben (Mikrofon, Kamera, etc.)
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(true));
-  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen', 'window'],
-      thumbnailSize: { width: 1, height: 1 }
-    });
-    callback({ video: sources[0], enableLocalEcho: false });
-  });
+
+  // ── WICHTIG: setDisplayMediaRequestHandler ENTFERNT ──
+  // Vorher hat dieser Handler immer automatisch sources[0] gewählt
+  // und damit die eigene Source-Auswahl im UI überschrieben.
+  // Jetzt übernimmt der ipcMain 'get-sources' + getUserMedia mit
+  // chromeMediaSourceId die Kontrolle vollständig.
 
   win.loadFile('index.html');
   // win.webContents.openDevTools();
 }
 
+// Liefert alle Bildschirme & Fenster mit Thumbnails ans Frontend
 ipcMain.handle('get-sources', async () => {
   const sources = await desktopCapturer.getSources({
     types: ['screen', 'window'],
