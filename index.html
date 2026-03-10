@@ -251,18 +251,19 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 #pasteCancelBtn{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;font-size:1rem}
 
 /* ── STREAM PICKER ── */
-#streamPickerModal .mbox{width:580px}
-.sp-source-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.sp-src-btn{background:var(--bg4);border:2px solid transparent;color:var(--text);padding:10px 8px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:4px;transition:.15s}
+#streamPickerModal .mbox{width:480px;padding:18px}
+.sp-source-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.sp-src-btn{background:var(--bg4);border:2px solid transparent;color:var(--text);padding:7px 6px;border-radius:7px;cursor:pointer;font-size:.78rem;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.15s}
 .sp-src-btn:hover{border-color:var(--accent);color:var(--accent)}
 .sp-src-btn.active{border-color:var(--accent);background:var(--accent)22;color:var(--accent)}
-.sp-src-btn .sp-icon{font-size:1.4rem}
-.sp-screens-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:200px;overflow-y:auto;margin-bottom:10px}
-.sp-screen-tile{background:var(--bg4);border-radius:6px;padding:6px;cursor:pointer;border:2px solid transparent;transition:.15s;text-align:center}
+.sp-src-btn .sp-icon{font-size:1.1rem}
+/* Source tiles: compact scrollable row */
+.sp-screens-grid{display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;margin-bottom:8px;align-content:flex-start}
+.sp-screen-tile{background:var(--bg4);border-radius:6px;padding:5px;cursor:pointer;border:2px solid transparent;transition:.15s;text-align:center;width:calc(33.33% - 4px);box-sizing:border-box;flex-shrink:0}
 .sp-screen-tile:hover{border-color:var(--accent)}
 .sp-screen-tile.selected{border-color:var(--accent);background:var(--accent)22}
-.sp-screen-tile img{width:100%;border-radius:4px;aspect-ratio:16/9;object-fit:cover;background:#000;margin-bottom:4px}
-.sp-screen-tile span{font-size:.75rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-screen-tile img{width:100%;border-radius:3px;aspect-ratio:16/9;object-fit:cover;background:#000;margin-bottom:3px;display:block}
+.sp-screen-tile span{font-size:.68rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -494,7 +495,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     </div>
 
     <div class="prof-lbl">Vorschau</div>
-    <video id="spPreview" autoplay muted playsinline style="width:100%;border-radius:8px;background:#000;aspect-ratio:16/9;margin-bottom:12px;object-fit:contain"></video>
+    <video id="spPreview" autoplay muted playsinline style="width:100%;border-radius:6px;background:#000;aspect-ratio:16/9;margin-bottom:8px;object-fit:contain;max-height:140px"></video>
 
     <div id="spAudioHint" style="font-size:.8rem;color:var(--muted);margin-bottom:10px;padding:8px;background:var(--bg4);border-radius:6px;display:none">
       💡 <strong>Tipp:</strong> Im Browser-Dialog „Systemton freigeben" aktivieren damit alle Teilnehmer den Stream-Ton hören können.
@@ -653,27 +654,28 @@ const serverUrl='https://bro-talk.onrender.com';
 // ── DEFAULT SOUNDS (Base64 approach: encode via fetch to dataURL for sending)
 // We use pre-built tone generators so they work offline AND are sent to peers
 function generateToneBase64(freq,dur,type='sine',vol=0.5){
-  const sr=22050,frames=Math.floor(sr*dur),buf=new ArrayBuffer(44+frames*2);
+  const sr=44100,frames=Math.floor(sr*dur),buf=new ArrayBuffer(44+frames*2);
   const view=new DataView(buf);
-  const w=(o,v)=>{view.setUint32(o,v,true)};const ws=(o,v)=>{view.setUint16(o,v,true)};
-  [0x52494646].forEach((_,i)=>view.setUint8(i,'RIFF'.charCodeAt(i)));
-  w(4,36+frames*2);[0x57415645].forEach((_,i)=>view.setUint8(8+i,'WAVE'.charCodeAt(i)));
-  [0x666d7420].forEach((_,i)=>view.setUint8(12+i,'fmt '.charCodeAt(i)));
-  w(16,16);ws(20,1);ws(22,1);w(24,sr);w(28,sr*2);ws(32,2);ws(34,16);
-  [0x64617461].forEach((_,i)=>view.setUint8(36+i,'data'.charCodeAt(i)));
-  w(40,frames*2);
+  // WAV header
+  const wStr=(off,str)=>{for(let i=0;i<str.length;i++)view.setUint8(off+i,str.charCodeAt(i));};
+  wStr(0,'RIFF');view.setUint32(4,36+frames*2,true);wStr(8,'WAVE');
+  wStr(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);
+  view.setUint16(22,1,true);view.setUint32(24,sr,true);view.setUint32(28,sr*2,true);
+  view.setUint16(32,2,true);view.setUint16(34,16,true);
+  wStr(36,'data');view.setUint32(40,frames*2,true);
   for(let i=0;i<frames;i++){
     const t=i/sr;
     let s=0;
-    if(type==='sine')s=Math.sin(2*Math.PI*freq*t);
-    else if(type==='square')s=Math.sign(Math.sin(2*Math.PI*freq*t));
-    else if(type==='triangle')s=2*Math.abs(2*(t*freq-Math.floor(t*freq+0.5)))-1;
-    else if(type==='sawtooth')s=2*(t*freq-Math.floor(t*freq+0.5));
-    const env=Math.max(0,1-t/(dur*0.8));
+    if(type==='sine')     s=Math.sin(2*Math.PI*freq*t);
+    else if(type==='square')  s=Math.sign(Math.sin(2*Math.PI*freq*t));
+    else if(type==='triangle')s=2*Math.abs(2*(t*freq-Math.floor(t*freq+.5)))-1;
+    else if(type==='sawtooth') s=2*(t*freq-Math.floor(t*freq+.5));
+    const env=Math.max(0,1-i/(frames*.85)); // fade out
     view.setInt16(44+i*2,Math.max(-32767,Math.min(32767,s*env*vol*32767)),true);
   }
-  let b='';const bytes=new Uint8Array(buf);for(let i=0;i<bytes.length;i++)b+=String.fromCharCode(bytes[i]);
-  return 'data:audio/wav;base64,'+btoa(b);
+  const bytes=new Uint8Array(buf);
+  let bin='';for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+  return 'data:audio/wav;base64,'+btoa(bin);
 }
 
 // Remote-sendable sounds (pre-generated as base64 WAV)
@@ -1139,8 +1141,10 @@ function doJoin(){
   // Sound events – now always send base64 data so ALL clients can play it
   socket.on('playSound',({soundData,soundName,fromName})=>{
     stopCurrentSound();
-    if(soundData)currentSound=playBase64(soundData);
-    showSoundToast(`🎵 ${fromName}: ${soundName}`);
+    if(soundData){
+      currentSound=playBase64(soundData);
+      showSoundToast(`🎵 ${fromName}: ${soundName}`);
+    }
   });
   socket.on('stopSound',()=>stopCurrentSound());
   socket.on('roomDeleted',({name})=>{if(myRoom===name)switchRoom('Allgemein');});
@@ -1651,15 +1655,25 @@ async function loadElectronSources(){
       tile.onclick=()=>{
         grid.querySelectorAll('.sp-screen-tile').forEach(t=>t.classList.remove('selected'));
         tile.classList.add('selected');
-        // Show preview via Electron chromeMediaSourceId
-        navigator.mediaDevices.getUserMedia({
+        // Vorschau
+        const constraints={
           audio:false,
-          video:{mandatory:{chromeMediaSource:'desktop',chromeMediaSourceId:src.id,maxWidth:1280,maxHeight:720,maxFrameRate:30}}
-        }).then(s=>{
+          video:{mandatory:{chromeMediaSource:'desktop',chromeMediaSourceId:src.id,maxWidth:1280,maxHeight:720,maxFrameRate:15}}
+        };
+        navigator.mediaDevices.getUserMedia(constraints).then(s=>{
           spPickerStream?.getTracks().forEach(t=>t.stop());
-          spPickerStream=s;spPickerStream._srcId=src.id;
-          document.getElementById('spPreview').srcObject=s;
-        }).catch(e=>alert('Vorschau-Fehler: '+e.message));
+          spPickerStream=s;
+          spPickerStream._srcId=src.id;
+          const prev=document.getElementById('spPreview');
+          prev.srcObject=s;
+          prev.play().catch(()=>{});
+        }).catch(e=>{
+          // Vorschau fehlgeschlagen – srcId trotzdem merken für Confirm
+          console.warn('Vorschau fehlgeschlagen:',e.message);
+          if(spPickerStream){spPickerStream.getTracks().forEach(t=>t.stop());spPickerStream=null;}
+          spPickerStream={_srcId:src.id,getTracks:()=>[],_noStream:true};
+          document.getElementById('spPreview').srcObject=null;
+        });
       };
       grid.appendChild(tile);
     });
@@ -1700,41 +1714,57 @@ async function confirmStreamPicker(){
         audio:false
       });
     }else if(isElectron()){
-      // Electron path: use selected source id from preview
       const srcId=spPickerStream?._srcId;
       if(!srcId){alert('Bitte erst eine Quelle in der Liste auswählen!');return;}
-      // Get full-res stream from the already-selected source
-      spPickerStream?.getTracks().forEach(t=>t.stop());
-      const videoStream=await navigator.mediaDevices.getUserMedia({
-        audio:false,
-        video:{mandatory:{chromeMediaSource:'desktop',chromeMediaSourceId:srcId,maxWidth:1920,maxHeight:1080,maxFrameRate:30}}
-      });
-      // Desktop audio via loopback (Electron: separate getUserMedia with audio mandatory)
-      let audioStream=null;
+
+      // Stoppe Vorschau-Stream sauber
+      if(spPickerStream&&!spPickerStream._noStream){
+        spPickerStream.getTracks().forEach(t=>t.stop());
+      }
+      spPickerStream=null;
+
+      let videoStream=null;
+      // Versuche mandatory-Syntax (Electron <=28), dann fallback
       try{
-        audioStream=await navigator.mediaDevices.getUserMedia({
+        videoStream=await navigator.mediaDevices.getUserMedia({
+          audio:false,
+          video:{mandatory:{chromeMediaSource:'desktop',chromeMediaSourceId:srcId,maxWidth:1920,maxHeight:1080,maxFrameRate:30}}
+        });
+      }catch(e1){
+        try{
+          videoStream=await navigator.mediaDevices.getUserMedia({
+            audio:false,
+            video:{chromeMediaSource:'desktop',chromeMediaSourceId:srcId}
+          });
+        }catch(e2){
+          alert('Video-Stream fehlgeschlagen: '+e2.message);return;
+        }
+      }
+
+      // Desktop-Audio – komplett optional, nie ein Showstopper
+      let audioTracks=[];
+      try{
+        const as=await navigator.mediaDevices.getUserMedia({
           audio:{mandatory:{chromeMediaSource:'desktop',chromeMediaSourceId:srcId}},
           video:false
         });
-      }catch{/* audio optional – nicht alle Quellen haben Audio */}
-      // Combine video + audio into one stream
-      stream=new MediaStream([
-        ...videoStream.getVideoTracks(),
-        ...(audioStream?audioStream.getAudioTracks():[])
-      ]);
+        audioTracks=as.getAudioTracks();
+      }catch{/* kein Desktop-Audio – normal */}
+
       if(spMode==='both'){
-        // PiP camera composite
         const camS=await navigator.mediaDevices.getUserMedia({
           video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:320},height:{ideal:180}},
           audio:false
-        });
-        const composed=await createCompositeStream(new MediaStream(videoStream.getVideoTracks()),camS);
-        // keep audio tracks from screen
-        stream=new MediaStream([
-          ...composed.getVideoTracks(),
-          ...(audioStream?audioStream.getAudioTracks():[])
-        ]);
-        composed._cleanup&&(stream._cleanup=composed._cleanup);
+        }).catch(()=>null);
+        if(camS){
+          const composed=await createCompositeStream(new MediaStream(videoStream.getVideoTracks()),camS);
+          stream=new MediaStream([...composed.getVideoTracks(),...audioTracks]);
+          stream._cleanup=composed._cleanup;
+        }else{
+          stream=new MediaStream([...videoStream.getVideoTracks(),...audioTracks]);
+        }
+      }else{
+        stream=new MediaStream([...videoStream.getVideoTracks(),...audioTracks]);
       }
     }else{
       // Browser / Web path
@@ -1949,23 +1979,30 @@ function renderSoundboard(){
   const g=document.getElementById('sbGrid');g.innerHTML='';
   // Default sounds
   SOUND_DEFS_SB.forEach(s=>{
-    const b=mk('button','sb-btn');b.innerHTML=`<span class="sb-icon">${s.emoji}</span><span>${esc(s.name)}</span>`;
+    const b=mk('button','sb-btn');
+    b.innerHTML=`<span class="sb-icon">${s.emoji}</span><span>${esc(s.name)}</span>`;
     b.onclick=()=>{
-      stopCurrentSound();
       const data=SOUND_DATA[s.name];
-      currentSound=playBase64Vol(data);
-      // Send to all peers with base64 so they can play it too
-      if(socket)socket.emit('playSound',{room:myRoom,soundName:s.name,soundData:data});
+      if(!data){console.warn('Sound data missing:',s.name);return;}
+      stopCurrentSound();
+      currentSound=playBase64(data); // lokal sofort abspielen
+      if(socket&&myRoom){
+        socket.emit('playSound',{room:myRoom,soundName:s.name,soundData:data});
+      }
     };
     g.appendChild(b);
   });
   // Custom uploaded sounds
   Object.entries(sounds).forEach(([name,data])=>{
     const wrap=mk('div');wrap.style.position='relative';
-    const b=mk('button','sb-btn');b.innerHTML=`<span class="sb-icon">🎵</span><span>${esc(name)}</span>`;
+    const b=mk('button','sb-btn');
+    b.innerHTML=`<span class="sb-icon">🎵</span><span>${esc(name)}</span>`;
     b.onclick=()=>{
-      stopCurrentSound();currentSound=playBase64Vol(data);
-      if(socket)socket.emit('playSound',{room:myRoom,soundName:name,soundData:data});
+      stopCurrentSound();
+      currentSound=playBase64(data);
+      if(socket&&myRoom){
+        socket.emit('playSound',{room:myRoom,soundName:name,soundData:data});
+      }
     };
     const del=document.createElement('button');del.textContent='✕';
     del.style.cssText='position:absolute;top:4px;right:4px;background:var(--red);border:none;color:#fff;border-radius:4px;cursor:pointer;padding:1px 5px;font-size:.7rem;z-index:1';
@@ -1979,26 +2016,18 @@ document.getElementById('sbUpload').onchange=function(){
 };
 function playBase64(data){
   if(!data)return null;
-  try{
-    // Use AudioContext for reliable local playback (bypasses autoplay block)
-    const ac=new AudioContext();
-    const b64=data.split(',')[1];
-    const raw=atob(b64);
-    const buf=new Uint8Array(raw.length);
-    for(let i=0;i<raw.length;i++)buf[i]=raw.charCodeAt(i);
-    ac.decodeAudioData(buf.buffer,decoded=>{
-      const src=ac.createBufferSource();
-      const gain=ac.createGain();gain.gain.value=soundVolume;
-      src.buffer=decoded;src.connect(gain);gain.connect(ac.destination);
-      src.start(0);
-      src.onended=()=>ac.close();
-    });
-    // Return a fake "stoppable" handle
-    return {pause:()=>{try{ac.close();}catch{}},currentTime:0,_ac:ac};
-  }catch(e){
-    // Fallback: HTML Audio
-    const a=new Audio(data);a.volume=soundVolume;a.play().catch(()=>{});return a;
-  }
+  // Methode 1: HTML Audio Element – zuverlässigster Weg für alle Browser/Electron
+  const a=new Audio();
+  a.src=data;
+  a.volume=soundVolume;
+  const p=a.play();
+  if(p&&p.catch)p.catch(err=>{
+    console.warn('Audio play blocked, retry on next click:',err);
+    // Retry nach User-Interaktion
+    const retry=()=>{a.play().catch(()=>{});document.removeEventListener('click',retry);};
+    document.addEventListener('click',retry,{once:true});
+  });
+  return a;
 }
 function playBase64Vol(data){return playBase64(data);}
 function showSoundToast(msg){const t=document.getElementById('soundToast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);}
