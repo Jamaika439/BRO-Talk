@@ -1707,17 +1707,6 @@ document.getElementById('shareBtn').onclick=()=>{
   openStreamPicker();
 };
 
-// Im HTML nach dem shareBtn:
-document.getElementById('shareBtn').addEventListener('contextmenu', (e) => {
-  e.preventDefault();
-  if (shareStream) {
-    const at = shareStream.getAudioTracks();
-    const vt = shareStream.getVideoTracks();
-    alert(`Stream Info:\n- Video: ${vt.length} tracks\n- Audio: ${at.length} tracks\n\nAudio Labels:\n${at.map(t => t.label || '(no label)').join('\n')}`);
-  } else {
-    alert('Kein aktiver Stream');
-  }
-});
 
 async function applyShareStream(stream) {
   if (shareStream) {
