@@ -1492,210 +1492,144 @@ async function openStreamPicker(){
 }
 
 function closeStreamPicker(){
-  // FIX: Vorschau-Stream sauber stoppen bevor Modal schließt
-  if(spPickerStream&&!spPickerStream._noStream){
-    spPickerStream.getTracks().forEach(t=>t.stop());
+  // Auswahl im Main-Prozess zurücksetzen
+  if (isElectron()) {
+    window.electronAPI.clearSourceSelection().catch(() => {});
   }
-  spPickerStream=null;
-  const prev=document.getElementById('spPreview');
-  prev.srcObject=null;
-  prev.load(); // wichtig: verhindert Grauscreen-Hänger in Electron
+  
+  if (spPickerStream && !spPickerStream._noStream) {
+    spPickerStream.getTracks().forEach(t => t.stop());
+  }
+  spPickerStream = null;
+  
+  const prev = document.getElementById('spPreview');
+  prev.srcObject = null;
+  prev.load();
+  
   document.getElementById('spScreensGrid')?.remove();
   document.getElementById('streamPickerModal').classList.remove('on');
 }
 
+
 async function confirmStreamPicker(){
-  const camId=document.getElementById('spCamSelect').value;
-  let stream=null;
+  const camId = document.getElementById('spCamSelect').value;
+  let stream = null;
 
-  const confirmBtn=document.getElementById('spConfirm');
-  confirmBtn.disabled=true;
-  confirmBtn.textContent='⏳ Starte…';
+  const confirmBtn = document.getElementById('spConfirm');
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = '⏳ Starte…';
 
-  // Timeout-Wrapper um getUserMedia
-  const withTimeout = (promise, ms, errorMsg) => {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms))
-    ]);
-  };
+  try {
+    if (spMode === 'cam') {
+      // ── Nur Kamera ──
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: camId ? {exact: camId} : undefined, width: {ideal: 1280}, height: {ideal: 720} },
+        audio: false
+      });
 
-  try{
-    if(spMode==='cam'){
-      stream=await withTimeout(
-        navigator.mediaDevices.getUserMedia({
-          video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:1280},height:{ideal:720}},
-          audio:false
-        }),
-        10000,
-        'Kamera-Timeout'
-      );
-
-    }else if(isElectron()){
-      // ── Electron Desktop Capture ──
-      const srcId=spPickerStream?._srcId;
-
-      // Vorschau stoppen OHNE den srcId zu verlieren
-      const savedSrcId = srcId;
-      if(spPickerStream && !spPickerStream._noStream){
-        try { spPickerStream.getTracks().forEach(t=>t.stop()); } catch{}
-      }
-      spPickerStream=null;
+    } else if (isElectron()) {
+      // ══════════════════════════════════════════════
+      // ██  ELECTRON: getDisplayMedia verwenden!  ██
+      // ══════════════════════════════════════════════
       
-      const prev=document.getElementById('spPreview');
-      prev.srcObject=null;
+      const srcId = spPickerStream?._srcId;
+      
+      // Vorschau stoppen
+      if (spPickerStream && !spPickerStream._noStream) {
+        spPickerStream.getTracks().forEach(t => t.stop());
+      }
+      spPickerStream = null;
+      document.getElementById('spPreview').srcObject = null;
 
-      if(!savedSrcId){
+      if (!srcId) {
         alert('Bitte erst eine Quelle in der Liste auswählen!');
-        confirmBtn.disabled=false;
-        confirmBtn.textContent='✅ Stream starten';
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '✅ Stream starten';
         return;
       }
 
-      console.log('[Stream] Starting capture for:', savedSrcId);
+      // ── WICHTIG: Quelle im Main-Prozess registrieren ──
+      console.log('[Stream] Selecting source:', srcId);
+      await window.electronAPI.selectSource(srcId);
 
-      let videoStream=null;
+      // ── Jetzt getDisplayMedia aufrufen ──
+      // Der Main-Prozess verwendet automatisch die vorgewählte Quelle!
+      console.log('[Stream] Calling getDisplayMedia...');
       
-      // ── Methode 1: mandatory (Electron ≤28) ──
       try {
-        videoStream = await withTimeout(
-          navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-              mandatory: {
-                chromeMediaSource: 'desktop',
-                chromeMediaSourceId: savedSrcId,
-                maxWidth: 1920,
-                maxHeight: 1080,
-                maxFrameRate: 30
-              }
-            }
-          }),
-          8000,
-          'Stream-Timeout (mandatory)'
-        );
-        console.log('[Stream] Success with mandatory constraints');
-      } catch(e) {
-        console.warn('[Stream] Mandatory failed:', e.message);
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            frameRate: { ideal: 30, max: 60 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: true  // System-Audio wenn verfügbar
+        });
+        console.log('[Stream] getDisplayMedia success!');
+      } catch (e) {
+        console.error('[Stream] getDisplayMedia failed:', e);
+        await window.electronAPI.clearSourceSelection();
+        throw e;
       }
 
-      // ── Methode 2: Standard constraints (Electron 29+) ──
-      if(!videoStream) {
+      // Bei "Beides" Kamera hinzufügen
+      if (spMode === 'both' && stream) {
         try {
-          videoStream = await withTimeout(
-            navigator.mediaDevices.getUserMedia({
-              audio: false,
-              video: {
-                chromeMediaSource: 'desktop',
-                chromeMediaSourceId: savedSrcId
-              }
-            }),
-            8000,
-            'Stream-Timeout (standard)'
-          );
-          console.log('[Stream] Success with standard constraints');
-        } catch(e) {
-          console.warn('[Stream] Standard failed:', e.message);
-        }
-      }
-
-      if(!videoStream){
-        alert('Video-Stream fehlgeschlagen.\nBitte andere Quelle wählen oder App neu starten.');
-        confirmBtn.disabled=false;
-        confirmBtn.textContent='✅ Stream starten';
-        return;
-      }
-
-      // Desktop-Audio (optional, mit kurzem Timeout)
-      let audioTracks=[];
-      try{
-        const as = await withTimeout(
-          navigator.mediaDevices.getUserMedia({
-            audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: savedSrcId } },
-            video: false
-          }),
-          3000,
-          'Audio-Timeout'
-        );
-        audioTracks=as.getAudioTracks();
-        console.log('[Stream] Desktop audio captured');
-      } catch(e) {
-        console.log('[Stream] No desktop audio:', e.message);
-      }
-
-      if(spMode==='both'){
-        let camS=null;
-        try {
-          camS = await withTimeout(
-            navigator.mediaDevices.getUserMedia({
-              video: { deviceId: camId ? {exact:camId} : undefined, width:{ideal:320}, height:{ideal:180} },
-              audio: false
-            }),
-            5000,
-            'Kamera-Timeout (Composite)'
-          );
-        } catch(e) {
+          const camS = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: camId ? {exact: camId} : undefined, width: {ideal: 320}, height: {ideal: 180} },
+            audio: false
+          });
+          stream = await createCompositeStream(stream, camS);
+          console.log('[Stream] Composite stream created');
+        } catch (e) {
           console.warn('[Stream] Camera for composite failed:', e.message);
         }
-        
-        if(camS){
-          const composed = await createCompositeStream(
-            new MediaStream(videoStream.getVideoTracks()),
-            camS
-          );
-          stream = new MediaStream([...composed.getVideoTracks(), ...audioTracks]);
-          stream._cleanup = composed._cleanup;
-        } else {
-          stream = new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]);
-        }
-      } else {
-        stream = new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]);
       }
 
     } else {
-      // ── Browser / Web (nicht Electron) ──
-      if(spMode==='screen'){
+      // ── Browser (nicht Electron) ──
+      if (spMode === 'screen') {
         stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: {ideal:30}, cursor:'motion' },
+          video: { frameRate: {ideal: 30}, cursor: 'motion' },
           audio: true
         });
       } else {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: {ideal:30}, cursor:'motion' },
+          video: { frameRate: {ideal: 30}, cursor: 'motion' },
           audio: true
         });
         const camS = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: camId ? {exact:camId} : undefined, width:{ideal:320}, height:{ideal:180} },
+          video: { deviceId: camId ? {exact: camId} : undefined, width: {ideal: 320}, height: {ideal: 180} },
           audio: false
         });
         stream = await createCompositeStream(screenStream, camS);
       }
     }
-  } catch(e) {
-    console.error('[Stream] Final error:', e);
-    if(e.name !== 'NotAllowedError' && e.message !== 'Stream-Timeout (mandatory)') {
+  } catch (e) {
+    console.error('[Stream] Error:', e);
+    if (e.name !== 'NotAllowedError') {
       alert('Stream-Fehler: ' + e.message);
     }
-    confirmBtn.disabled=false;
-    confirmBtn.textContent='✅ Stream starten';
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '✅ Stream starten';
     return;
   }
 
-  confirmBtn.disabled=false;
-  confirmBtn.textContent='✅ Stream starten';
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = '✅ Stream starten';
   
   // Modal schließen
   document.getElementById('spScreensGrid')?.remove();
   document.getElementById('streamPickerModal').classList.remove('on');
 
-  console.log('[Stream] Applying stream, mode:', spMode);
-  
-  if(spMode==='cam'){
+  // Stream anwenden
+  if (spMode === 'cam') {
     await applyCamStream(stream);
   } else {
     await applyShareStream(stream);
   }
 }
+
 
 
 async function createCompositeStream(screenStream,camStream2){

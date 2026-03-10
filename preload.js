@@ -1,13 +1,18 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Quellen laden
   getSources: () => ipcRenderer.invoke('get-sources'),
-  getStreamForSource: (sourceId) => ipcRenderer.invoke('get-stream-for-source', sourceId),
   
-  // Platform-Info für Debugging
+  // Quelle vorauswählen (WICHTIG!)
+  selectSource: (sourceId) => ipcRenderer.invoke('select-source', sourceId),
+  
+  // Auswahl zurücksetzen
+  clearSourceSelection: () => ipcRenderer.invoke('clear-source-selection'),
+  
+  // Info
   platform: process.platform,
   isElectron: true
 });
 
-// Debug-Log im Renderer
-console.log('[Preload] electronAPI exposed successfully');
+console.log('[Preload] electronAPI exposed');
