@@ -1350,34 +1350,88 @@ function makePeer(pid){
   if(localStream)localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   pc.onicecandidate=({candidate})=>{if(candidate)socket.emit('rtc-ice',{targetId:pid,candidate});};
   pc.onconnectionstatechange=()=>{if(['failed','disconnected','closed'].includes(pc.connectionState))cleanPeer(pid);};
-  pc.ontrack=({track,streams})=>{
-    if(track.kind==='audio'){
-      const stream=streams[0]||new MediaStream([track]);
-      const audio=document.createElement('audio');
-      audio.srcObject=stream;audio.autoplay=true;audio.style.display='none';
-      if(selectedSpkId&&audio.setSinkId)audio.setSinkId(selectedSpkId).catch(()=>{});
-      document.body.appendChild(audio);pc._audioEl=audio;
-      const setupGain=()=>{
-        if(pc._gainNode)return;
-        try{
-          const ctx=new AudioContext({sampleRate:48000,latencyHint:'interactive'});
-          ctx.resume().catch(()=>{});
-          document.addEventListener('click',()=>{if(ctx.state==='suspended')ctx.resume();},{once:true});
-          const src=ctx.createMediaStreamSource(stream);
-          const gain=ctx.createGain();gain.gain.value=(deafened?0:pc._volume)*masterVolume;
-          src.connect(gain);gain.connect(ctx.destination);
-          pc._gainNode=gain;pc._audioCtx=ctx;
-          audio.muted=true;
-        }catch(e){console.warn('AudioContext failed',e);}
-      };
-      audio.play().then(()=>setupGain()).catch(()=>{document.addEventListener('click',()=>{audio.play().then(setupGain).catch(()=>{});},{once:true});});
-      renderUserList(lastUserList);
-    }else if(track.kind==='video'){
-      addRemoteTile(pid,streams[0]||new MediaStream([track]));
-    }
-  };
-  return pc;
 }
+
+pc.ontrack = ({ track, streams }) => {
+  console.log(`[Peer ${pid}] Received track:`, track.kind, track.label, track.id);
+  
+  if (track.kind === 'audio') {
+    // ── Prüfen ob es Mikrofon oder System-Audio ist ──
+    const isSystemAudio = track.label.includes('screen') || 
+                          track.label.includes('system') || 
+                          track.label.includes('loopback') ||
+                          track.label === '';  // System-Audio hat oft kein Label
+    
+    console.log(`[Peer ${pid}] Audio track - System:`, isSystemAudio);
+    
+    const stream = streams[0] || new MediaStream([track]);
+    
+    // Für System-Audio: Kein separates Audio-Element, 
+    // wird über Video-Tile abgespielt
+    if (isSystemAudio) {
+      // Aktualisiere existierendes Video-Tile
+      const tile = document.getElementById('tile-' + pid);
+      if (tile) {
+        const video = tile.querySelector('video');
+        if (video && video.srcObject) {
+          // Audio-Track zum bestehenden Stream hinzufügen
+          if (!video.srcObject.getAudioTracks().find(t => t.id === track.id)) {
+            video.srcObject.addTrack(track);
+            console.log(`[Peer ${pid}] Added system audio to video tile`);
+          }
+        }
+      }
+      return;
+    }
+    
+    // ── Mikrofon-Audio: Separates Audio-Element ──
+    if (pc._audioEl) {
+      // Existiert bereits
+      return;
+    }
+    
+    const audio = document.createElement('audio');
+    audio.srcObject = stream;
+    audio.autoplay = true;
+    audio.style.display = 'none';
+    if (selectedSpkId && audio.setSinkId) {
+      audio.setSinkId(selectedSpkId).catch(() => {});
+    }
+    document.body.appendChild(audio);
+    pc._audioEl = audio;
+
+    const setupGain = () => {
+      if (pc._gainNode) return;
+      try {
+        const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+        ctx.resume().catch(() => {});
+        const src = ctx.createMediaStreamSource(stream);
+        const gain = ctx.createGain();
+        gain.gain.value = (deafened ? 0 : pc._volume) * masterVolume;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        pc._gainNode = gain;
+        pc._audioCtx = ctx;
+        audio.muted = true;
+      } catch (e) {
+        console.warn('[Peer] AudioContext failed', e);
+      }
+    };
+
+    audio.play().then(setupGain).catch(() => {
+      document.addEventListener('click', () => {
+        audio.play().then(setupGain).catch(() => {});
+      }, { once: true });
+    });
+
+    renderUserList(lastUserList);
+    
+  } else if (track.kind === 'video') {
+    console.log(`[Peer ${pid}] Adding video tile`);
+    addRemoteTile(pid, streams[0] || new MediaStream([track]));
+  }
+};
+
 async function initPeer(pid,asInit){
   if(peerConns[pid])return;
   const pc=makePeer(pid);
@@ -1652,30 +1706,108 @@ document.getElementById('shareBtn').onclick=()=>{
   if(shareStream){stopShare();return;}
   openStreamPicker();
 };
-async function applyShareStream(stream){
-  if(shareStream)shareStream.getTracks().forEach(t=>t.stop());
-  shareStream=stream;
-  buildShareTile(shareStream,'share-tile',myName+' (Teilt)');
+
+// Im HTML nach dem shareBtn:
+document.getElementById('shareBtn').addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (shareStream) {
+    const at = shareStream.getAudioTracks();
+    const vt = shareStream.getVideoTracks();
+    alert(`Stream Info:\n- Video: ${vt.length} tracks\n- Audio: ${at.length} tracks\n\nAudio Labels:\n${at.map(t => t.label || '(no label)').join('\n')}`);
+  } else {
+    alert('Kein aktiver Stream');
+  }
+});
+
+async function applyShareStream(stream) {
+  if (shareStream) {
+    if (shareStream._cleanup) shareStream._cleanup();
+    shareStream.getTracks().forEach(t => t.stop());
+  }
+  shareStream = stream;
+
+  // ── Debug: Was haben wir bekommen? ──
+  const videoTracks = shareStream.getVideoTracks();
+  const audioTracks = shareStream.getAudioTracks();
+  console.log('[Share] Video tracks:', videoTracks.length);
+  console.log('[Share] Audio tracks:', audioTracks.length);
+  audioTracks.forEach((t, i) => {
+    console.log(`[Share] Audio track ${i}:`, t.label, t.enabled, t.readyState);
+  });
+
+  buildShareTile(shareStream, 'share-tile', myName + ' (Teilt)');
   document.getElementById('shareBtn').classList.add('active');
-  updateFlyingWindow(shareStream,myName+' (Teilt)');
-  for(const [pid,pc] of Object.entries(peerConns)){
-    const vt=shareStream.getVideoTracks()[0];
-    const videoSender=pc.getSenders().find(s=>s.track?.kind==='video');
-    if(videoSender){await videoSender.replaceTrack(vt).catch(()=>{});await setMaxBitrate(videoSender,8000);}
-    else{
-      pc.addTrack(vt,shareStream);
-      try{const offer=await pc.createOffer();await pc.setLocalDescription(offer);socket.emit('rtc-offer',{targetId:pid,offer:pc.localDescription});setTimeout(async()=>{const s=pc.getSenders().find(s=>s.track?.kind==='video');if(s)await setMaxBitrate(s,8000);},2000);}catch{}
+  updateFlyingWindow(shareStream, myName + ' (Teilt)');
+
+  // ══════════════════════════════════════════════════════════
+  // ██  Tracks an alle Peers senden  ██
+  // ══════════════════════════════════════════════════════════
+  for (const [pid, pc] of Object.entries(peerConns)) {
+    
+    // ── VIDEO Track hinzufügen ──
+    const vt = videoTracks[0];
+    if (vt) {
+      const existingVideoSender = pc.getSenders().find(s => 
+        s.track?.kind === 'video' && s.track?.id !== localStream?.getVideoTracks()[0]?.id
+      );
+      
+      if (existingVideoSender) {
+        console.log(`[Share] Replacing video track for peer ${pid}`);
+        await existingVideoSender.replaceTrack(vt).catch(e => console.warn('[Share] Replace video failed:', e));
+      } else {
+        console.log(`[Share] Adding video track for peer ${pid}`);
+        try {
+          pc.addTrack(vt, shareStream);
+        } catch (e) {
+          console.warn('[Share] Add video failed:', e);
+        }
+      }
+      await setMaxBitrate(pc.getSenders().find(s => s.track === vt), 8000);
     }
-    const ats=shareStream.getAudioTracks();
-    if(ats.length>0){
-      const at=ats[0];
-      const audioSender=pc.getSenders().find(s=>s.track?.kind==='audio'&&s.track!==localStream?.getAudioTracks()[0]);
-      if(audioSender)await audioSender.replaceTrack(at).catch(()=>{});
-      else{try{pc.addTrack(at,shareStream);}catch{}}
+
+    // ── AUDIO Track hinzufügen (System-Audio) ──
+    if (audioTracks.length > 0) {
+      const at = audioTracks[0];
+      
+      // Suche nach existierendem System-Audio Sender (nicht Mikrofon!)
+      const existingAudioSenders = pc.getSenders().filter(s => s.track?.kind === 'audio');
+      const micTrackId = localStream?.getAudioTracks()[0]?.id;
+      
+      // Finde einen freien Audio-Slot oder einen der nicht das Mikro ist
+      let audioSender = existingAudioSenders.find(s => s.track?.id !== micTrackId);
+      
+      if (audioSender) {
+        console.log(`[Share] Replacing system audio track for peer ${pid}`);
+        await audioSender.replaceTrack(at).catch(e => console.warn('[Share] Replace audio failed:', e));
+      } else {
+        console.log(`[Share] Adding NEW system audio track for peer ${pid}`);
+        try {
+          pc.addTrack(at, shareStream);
+        } catch (e) {
+          console.warn('[Share] Add audio failed:', e);
+        }
+      }
+    } else {
+      console.log(`[Share] No audio tracks to share with peer ${pid}`);
+    }
+
+    // ── Renegotiation ──
+    try {
+      console.log(`[Share] Creating offer for peer ${pid}`);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('rtc-offer', { targetId: pid, offer: pc.localDescription });
+    } catch (e) {
+      console.warn('[Share] Renegotiation failed:', e);
     }
   }
-  if(shareStream.getVideoTracks()[0])shareStream.getVideoTracks()[0].onended=stopShare;
+
+  // ── Track-Ende Handler ──
+  if (videoTracks[0]) {
+    videoTracks[0].onended = stopShare;
+  }
 }
+
 function stopShare(){
   if(!shareStream)return;
   if(shareStream._cleanup)shareStream._cleanup();

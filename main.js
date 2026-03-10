@@ -45,43 +45,58 @@ function createWindow() {
   // ══════════════════════════════════════════════════════════════
   // ██  WICHTIG: Display Media Handler für Desktop-Capture  ██
   // ══════════════════════════════════════════════════════════════
-  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
-    try {
-      // Hole alle verfügbaren Quellen
-      const sources = await desktopCapturer.getSources({
-        types: ['screen', 'window'],
-        thumbnailSize: { width: 320, height: 180 }
-      });
+  // ══════════════════════════════════════════════════════════════
+// ██  Display Media Handler mit besserem Audio-Support  ██
+// ══════════════════════════════════════════════════════════════
+session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 320, height: 180 }
+    });
 
-      if (sources.length === 0) {
-        callback({});
-        return;
-      }
-
-      // Wenn User eine Quelle vorgewählt hat, diese verwenden
-      let selectedSource = null;
-      if (selectedSourceId) {
-        selectedSource = sources.find(s => s.id === selectedSourceId);
-        console.log('[Main] Using pre-selected source:', selectedSourceId);
-      }
-
-      // Fallback: erste Quelle
-      if (!selectedSource) {
-        selectedSource = sources[0];
-        console.log('[Main] Using fallback source:', selectedSource.name);
-      }
-
-      // Stream zurückgeben
-      callback({ video: selectedSource, audio: 'loopback' });
-      
-      // Reset nach Verwendung
-      selectedSourceId = null;
-      
-    } catch (err) {
-      console.error('[Main] DisplayMedia error:', err);
+    if (sources.length === 0) {
+      console.log('[Main] No sources available');
       callback({});
+      return;
     }
-  });
+
+    let selectedSource = null;
+    if (selectedSourceId) {
+      selectedSource = sources.find(s => s.id === selectedSourceId);
+      console.log('[Main] Using pre-selected source:', selectedSourceId, selectedSource?.name);
+    }
+
+    if (!selectedSource) {
+      selectedSource = sources[0];
+      console.log('[Main] Using fallback source:', selectedSource.name);
+    }
+
+    // ══════════════════════════════════════════════
+    // ██  WICHTIG: Audio richtig konfigurieren  ██
+    // ══════════════════════════════════════════════
+    
+    // Für Screens: System-Audio mit loopback
+    // Für Windows: Kein System-Audio möglich
+    const isScreen = selectedSource.id.startsWith('screen:');
+    
+    console.log('[Main] Source type:', isScreen ? 'Screen' : 'Window');
+    console.log('[Main] Returning video source:', selectedSource.name);
+
+    callback({
+      video: selectedSource,
+      // Audio nur für Bildschirme, nicht für Fenster
+      audio: isScreen ? 'loopbackWithMute' : undefined
+    });
+    
+    selectedSourceId = null;
+    
+  } catch (err) {
+    console.error('[Main] DisplayMedia error:', err);
+    callback({});
+  }
+}, { useSystemPicker: false });
+
 
   mainWindow.loadFile('index.html');
 
