@@ -1387,7 +1387,7 @@ function makePeer(pid){
       addRemoteTile(pid,streams[0]||new MediaStream([track]));
     }
   };
-  return pc;
+  return pc; n
 }
 
 
@@ -1845,7 +1845,6 @@ function addRemoteTile(pid, stream) {
   const vg = document.getElementById('videoGrid');
   document.getElementById('tile-' + pid)?.remove();
 
-  // ── Debug: Was kommt an? ──
   console.log(`[Remote ${pid}] Video tracks:`, stream.getVideoTracks().length);
   console.log(`[Remote ${pid}] Audio tracks:`, stream.getAudioTracks().length);
 
@@ -1858,20 +1857,13 @@ function addRemoteTile(pid, stream) {
   v.playsInline = true;
   v.srcObject = stream;
   v.style.cssText = 'width:280px;height:158px;object-fit:contain;background:#000;border-radius:8px;display:block';
-
-  // ══════════════════════════════════════════════
-  // ██  WICHTIG: Video NICHT muten für Audio!  ██
-  // ══════════════════════════════════════════════
-  // Das Video-Element spielt auch den System-Audio ab!
   v.muted = false;
   v.volume = 1.0;
 
   const lbl = mk('div', 'video-label');
-  // Finde den Namen des Users
   const user = lastUserList.find(u => u.id === pid);
   lbl.textContent = user?.name || pid.slice(0, 8);
 
-  // Audio-Indikator
   const audioIndicator = mk('span');
   audioIndicator.style.cssText = 'position:absolute;top:5px;left:5px;font-size:1rem';
   audioIndicator.textContent = stream.getAudioTracks().length > 0 ? '🔊' : '🔇';
@@ -1882,19 +1874,35 @@ function addRemoteTile(pid, stream) {
 
   // ── Lautstärke-Overlay ──
   const ov = mk('div', 'vol-overlay');
-  const vi = document.createElement('span');
+
+  // ── Mute Button (klickbar!) ──
+  const vi = document.createElement('button');
   vi.textContent = '🔊';
+  vi.style.cssText = 'background:none;border:none;cursor:pointer;font-size:1rem;padding:2px';
+  vi.onclick = () => {
+    if (v.muted) {
+      v.muted = false;
+      v.volume = sl.value / 100;
+      vi.textContent = sl.value == 0 ? '🔇' : sl.value < 50 ? '🔉' : '🔊';
+    } else {
+      v.muted = true;
+      vi.textContent = '🔇';
+    }
+  };
+
   const sl = document.createElement('input');
   sl.type = 'range';
   sl.min = 0;
   sl.max = 200;
   sl.value = 100;
+
   const vl = document.createElement('span');
   vl.textContent = '100%';
 
   sl.oninput = () => {
     const val = parseInt(sl.value);
     v.volume = Math.min(val / 100, 2.0);
+    v.muted = val === 0;
     vl.textContent = val + '%';
     vi.textContent = val === 0 ? '🔇' : val < 50 ? '🔉' : '🔊';
   };
@@ -1910,19 +1918,14 @@ function addRemoteTile(pid, stream) {
   vg.appendChild(tile);
   vg.classList.add('on');
 
-  // ── Autoplay mit User-Interaction Fallback ──
   v.play().catch(() => {
-    console.log(`[Remote ${pid}] Autoplay blocked, waiting for click`);
     const playOnClick = () => {
-      v.play().then(() => {
-        console.log(`[Remote ${pid}] Playing after click`);
-      }).catch(() => {});
+      v.play().catch(() => {});
       document.removeEventListener('click', playOnClick);
     };
     document.addEventListener('click', playOnClick);
   });
 }
-
 
 function openFullscreen(stream,label){document.getElementById('fsLabel').textContent=label;document.getElementById('fsVideo').srcObject=stream;document.getElementById('fsOverlay').classList.add('on');}
 function closeFullscreen(){document.getElementById('fsOverlay').classList.remove('on');document.getElementById('fsVideo').srcObject=null;}
