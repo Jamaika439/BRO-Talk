@@ -495,16 +495,8 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 
 <!-- SIDEBAR -->
 <div id="sidebar">
-  <!-- FIX 1: Inline SVG Logo – kein logo.png nötig -->
   <div class="srv-hdr" style="display:flex;align-items:center;gap:8px;padding:10px 12px">
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="border-radius:6px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="8" fill="#5865f2"/>
-      <circle cx="11" cy="13" r="3" fill="white"/>
-      <circle cx="21" cy="13" r="3" fill="white"/>
-      <path d="M8 20 Q16 26 24 20" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-      <circle cx="11" cy="13" r="1.2" fill="#5865f2"/>
-      <circle cx="21" cy="13" r="1.2" fill="#5865f2"/>
-    </svg>
+    <img src="assets/logo.png" width="32" height="32" style="border-radius:6px;flex-shrink:0">
     <span>Bro Talk</span>
   </div>
   <div class="sec-lbl">Räume <button id="addRoomBtn">＋</button></div>
@@ -625,17 +617,23 @@ function generateToneBase64(freq,dur,type='sine',vol=0.5){
 }
 
 const SOUND_DATA={};
-const SOUND_DEFS_SB=[
-  {name:'Airhorn',  emoji:'📯',freq:440, dur:1.2,type:'sawtooth',vol:0.6},
-  {name:'Applaus',  emoji:'👏',freq:880, dur:0.8,type:'sine',    vol:0.5},
-  {name:'Ding',     emoji:'🔔',freq:1047,dur:0.4,type:'sine',    vol:0.5},
-  {name:'Vine Boom',emoji:'💥',freq:60,  dur:0.7,type:'sine',    vol:0.8},
-  {name:'Bruh',     emoji:'😐',freq:200, dur:0.5,type:'square',  vol:0.5},
-  {name:'Wow',      emoji:'😮',freq:660, dur:0.6,type:'triangle',vol:0.5},
-  {name:'Nein',     emoji:'🇩🇪',freq:320,dur:0.4,type:'sawtooth',vol:0.5},
-  {name:'Rizz',     emoji:'😎',freq:523, dur:0.5,type:'sine',    vol:0.5},
+const SOUND_DEFS_SB = [
+  { name:'Airhorn',    emoji:'📯', url:'assets/sounds/airhorn.mp3' },
+  { name:'Applaus',    emoji:'👏', url:'assets/sounds/applause.mp3' },
+  { name:'Vine Boom',  emoji:'💥', url:'assets/sounds/vine-boom.mp3' },
+  { name:'Bruh',       emoji:'😐', url:'assets/sounds/bruh.mp3' },
+  { name:'Wow',        emoji:'😮', url:'assets/sounds/anime-wow-sound-effect.mp3' },
+  { name:'Nein',       emoji:'🙋‍♂️', url:'assets/sounds/nein.mp3' },
+  { name:'Rizz',       emoji:'😎', url:'assets/sounds/rizz-sound-effect.mp3' },
+  { name:'Franzosen',  emoji:'🥖', url:'assets/sounds/franzosen-grrrrr_9R4znxK.mp3' },
+  { name:'Fresse',     emoji:'🤐', url:'assets/sounds/fresse.mp3' },
+  { name:'Sven',       emoji:'👋', url:'assets/sounds/sven_OpcGpxO.mp3' },
+  { name:'Yeah',       emoji:'🎉', url:'assets/sounds/yeah-boiii-i-i-i (1).mp3' },
+  { name:'Indian',     emoji:'🎵', url:'assets/sounds/indian-song.mp3' },
 ];
-SOUND_DEFS_SB.forEach(s=>{SOUND_DATA[s.name]=generateToneBase64(s.freq,s.dur,s.type,s.vol);});
+SOUND_DEFS_SB.forEach(s => { SOUND_DATA[s.name] = s.url; });
+
+// SOUND_DATA nicht mehr nötig – direkt URL abspielen
 
 const ACCENT_COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0','#795548','#607d8b'];
 const FONTS=[
@@ -1918,13 +1916,17 @@ function addRemoteTile(pid, stream) {
   vg.appendChild(tile);
   vg.classList.add('on');
 
-  v.play().catch(() => {
-    const playOnClick = () => {
-      v.play().catch(() => {});
-      document.removeEventListener('click', playOnClick);
-    };
-    document.addEventListener('click', playOnClick);
-  });
+  v.muted = false;
+v.volume = 1.0;
+v.play().catch(() => {});
+
+const unmute = () => {
+  v.muted = false;
+  v.volume = sl.value / 100;
+  vi.textContent = '🔊';
+  document.removeEventListener('click', unmute);
+};
+document.addEventListener('click', unmute);
 }
 
 function openFullscreen(stream,label){document.getElementById('fsLabel').textContent=label;document.getElementById('fsVideo').srcObject=stream;document.getElementById('fsOverlay').classList.add('on');}
@@ -1945,17 +1947,19 @@ function stopCurrentSound(){if(currentSound){try{currentSound.pause();currentSou
 
 function renderSoundboard(){
   const g=document.getElementById('sbGrid');g.innerHTML='';
-  SOUND_DEFS_SB.forEach(s=>{
-    const b=mk('button','sb-btn');
-    b.innerHTML=`<span class="sb-icon">${s.emoji}</span><span>${esc(s.name)}</span>`;
-    b.onclick=()=>{
-      const data=SOUND_DATA[s.name];if(!data)return;
-      stopCurrentSound();
-      currentSound=playBase64(data);
-      if(socket&&myRoom)socket.emit('playSound',{room:myRoom,soundName:s.name,soundData:data});
-    };
-    g.appendChild(b);
-  });
+ SOUND_DEFS_SB.forEach(s=>{
+  const b=mk('button','sb-btn');
+  b.innerHTML=`<span class="sb-icon">${s.emoji}</span><span>${esc(s.name)}</span>`;
+  b.onclick=()=>{
+    stopCurrentSound();
+    currentSound=new Audio(s.url);        // ← direkt URL
+    currentSound.volume=soundVolume;
+    currentSound.play().catch(()=>{});
+    if(socket&&myRoom)socket.emit('playSound',{room:myRoom,soundName:s.name,soundData:s.url});
+  };
+  g.appendChild(b);
+});
+
   Object.entries(sounds).forEach(([name,data])=>{
     const wrap=mk('div');wrap.style.position='relative';
     const b=mk('button','sb-btn');
