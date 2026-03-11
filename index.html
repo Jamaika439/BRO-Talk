@@ -1350,88 +1350,45 @@ function makePeer(pid){
   if(localStream)localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   pc.onicecandidate=({candidate})=>{if(candidate)socket.emit('rtc-ice',{targetId:pid,candidate});};
   pc.onconnectionstatechange=()=>{if(['failed','disconnected','closed'].includes(pc.connectionState))cleanPeer(pid);};
-pc.ontrack = ({ track, streams }) => {
-  console.log(`[Peer ${pid}] Received track:`, track.kind, track.label, track.id);
+  pc.ontrack=({track,streams})=>{
+    console.log(`[Peer ${pid}] Received track:`,track.kind,track.label,track.id);
+    if(track.kind==='audio'){
+      const isSystemAudio=track.label.includes('screen')||track.label.includes('system')||track.label.includes('loopback')||track.label==='';
+      const stream=streams[0]||new MediaStream([track]);
+      if(isSystemAudio){
+        const tile=document.getElementById('tile-'+pid);
+        if(tile){const video=tile.querySelector('video');if(video&&video.srcObject){if(!video.srcObject.getAudioTracks().find(t=>t.id===track.id))video.srcObject.addTrack(track);}}
+        return;
+      }
+      if(pc._audioEl)return;
+      const audio=document.createElement('audio');
+      audio.srcObject=stream;audio.autoplay=true;audio.style.display='none';
+      if(selectedSpkId&&audio.setSinkId)audio.setSinkId(selectedSpkId).catch(()=>{});
+      document.body.appendChild(audio);
+      pc._audioEl=audio;
+      const setupGain=()=>{
+        if(pc._gainNode)return;
+        try{
+          const ctx=new AudioContext({sampleRate:48000,latencyHint:'interactive'});
+          ctx.resume().catch(()=>{});
+          const src=ctx.createMediaStreamSource(stream);
+          const gain=ctx.createGain();
+          gain.gain.value=(deafened?0:pc._volume)*masterVolume;
+          src.connect(gain);gain.connect(ctx.destination);
+          pc._gainNode=gain;pc._audioCtx=ctx;
+          audio.muted=true;
+        }catch(e){console.warn('[Peer] AudioContext failed',e);}
+      };
+      audio.play().then(setupGain).catch(()=>{
+        document.addEventListener('click',()=>audio.play().then(setupGain).catch(()=>{}),{once:true});
+      });
+      renderUserList(lastUserList);
+    }else if(track.kind==='video'){
+      addRemoteTile(pid,streams[0]||new MediaStream([track]));
+    }
+  };
+  return pc;
 }
-
-
-  
-  if (track.kind === 'audio') {
-    // ── Prüfen ob es Mikrofon oder System-Audio ist ──
-    const isSystemAudio = track.label.includes('screen') || 
-                          track.label.includes('system') || 
-                          track.label.includes('loopback') ||
-                          track.label === '';  // System-Audio hat oft kein Label
-    
-    console.log(`[Peer ${pid}] Audio track - System:`, isSystemAudio);
-    
-    const stream = streams[0] || new MediaStream([track]);
-    
-    // Für System-Audio: Kein separates Audio-Element, 
-    // wird über Video-Tile abgespielt
-    if (isSystemAudio) {
-      // Aktualisiere existierendes Video-Tile
-      const tile = document.getElementById('tile-' + pid);
-      if (tile) {
-        const video = tile.querySelector('video');
-        if (video && video.srcObject) {
-          // Audio-Track zum bestehenden Stream hinzufügen
-          if (!video.srcObject.getAudioTracks().find(t => t.id === track.id)) {
-            video.srcObject.addTrack(track);
-            console.log(`[Peer ${pid}] Added system audio to video tile`);
-          }
-        }
-      }
-      return;
-    }
-    
-    // ── Mikrofon-Audio: Separates Audio-Element ──
-    if (pc._audioEl) {
-      // Existiert bereits
-      return;
-    }
-    
-    const audio = document.createElement('audio');
-    audio.srcObject = stream;
-    audio.autoplay = true;
-    audio.style.display = 'none';
-    if (selectedSpkId && audio.setSinkId) {
-      audio.setSinkId(selectedSpkId).catch(() => {});
-    }
-    document.body.appendChild(audio);
-    pc._audioEl = audio;
-
-    const setupGain = () => {
-      if (pc._gainNode) return;
-      try {
-        const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
-        ctx.resume().catch(() => {});
-        const src = ctx.createMediaStreamSource(stream);
-        const gain = ctx.createGain();
-        gain.gain.value = (deafened ? 0 : pc._volume) * masterVolume;
-        src.connect(gain);
-        gain.connect(ctx.destination);
-        pc._gainNode = gain;
-        pc._audioCtx = ctx;
-        audio.muted = true;
-      } catch (e) {
-        console.warn('[Peer] AudioContext failed', e);
-      }
-    };
-
-    audio.play().then(setupGain).catch(() => {
-      document.addEventListener('click', () => {
-        audio.play().then(setupGain).catch(() => {});
-      }, { once: true });
-    });
-
-    renderUserList(lastUserList);
-    
-  } else if (track.kind === 'video') {
-    console.log(`[Peer ${pid}] Adding video tile`);
-    addRemoteTile(pid, streams[0] || new MediaStream([track]));
-  }
-};
 
 
 async function initPeer(pid,asInit){
