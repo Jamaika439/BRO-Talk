@@ -1347,6 +1347,7 @@ function makePeer(pid){
   peerConns[pid]=pc;
   if(!userVolumes[pid])userVolumes[pid]={vol:1.0,muted:false};
   pc._volume=userVolumes[pid].vol;pc._muted=userVolumes[pid].muted;
+  pc._pendingAudio=[];
   if(localStream)localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   pc.onicecandidate=({candidate})=>{if(candidate)socket.emit('rtc-ice',{targetId:pid,candidate});};
   pc.onconnectionstatechange=()=>{if(['failed','disconnected','closed'].includes(pc.connectionState))cleanPeer(pid);};
@@ -1356,8 +1357,25 @@ function makePeer(pid){
       const isSystemAudio=track.label.includes('screen')||track.label.includes('system')||track.label.includes('loopback')||track.label==='';
       const stream=streams[0]||new MediaStream([track]);
       if(isSystemAudio){
-        const tile=document.getElementById('tile-'+pid);
-        if(tile){const video=tile.querySelector('video');if(video&&video.srcObject){if(!video.srcObject.getAudioTracks().find(t=>t.id===track.id))video.srcObject.addTrack(track);}}
+        // Zwischenspeichern falls Tile noch nicht existiert
+        pc._pendingAudio.push(track);
+        const tryAdd=(attempts=0)=>{
+          const tile=document.getElementById('tile-'+pid);
+          if(tile){
+            const video=tile.querySelector('video');
+            if(video&&video.srcObject){
+              pc._pendingAudio.forEach(t=>{
+                if(!video.srcObject.getAudioTracks().find(a=>a.id===t.id))
+                  video.srcObject.addTrack(t);
+              });
+              video.muted=false;
+              video.volume=1.0;
+              video.play().catch(()=>{});
+              pc._pendingAudio=[];
+            } else if(attempts<30) setTimeout(()=>tryAdd(attempts+1),100);
+          } else if(attempts<30) setTimeout(()=>tryAdd(attempts+1),100);
+        };
+        tryAdd();
         return;
       }
       if(pc._audioEl)return;
@@ -1385,6 +1403,25 @@ function makePeer(pid){
       renderUserList(lastUserList);
     }else if(track.kind==='video'){
       addRemoteTile(pid,streams[0]||new MediaStream([track]));
+      // Pending Audio-Tracks hinzufügen
+      if(pc._pendingAudio.length>0){
+        setTimeout(()=>{
+          const tile=document.getElementById('tile-'+pid);
+          if(tile){
+            const video=tile.querySelector('video');
+            if(video&&video.srcObject){
+              pc._pendingAudio.forEach(t=>{
+                if(!video.srcObject.getAudioTracks().find(a=>a.id===t.id))
+                  video.srcObject.addTrack(t);
+              });
+              video.muted=false;
+              video.volume=1.0;
+              video.play().catch(()=>{});
+              pc._pendingAudio=[];
+            }
+          }
+        },300);
+      }
     }
   };
   return pc;
@@ -1668,11 +1705,18 @@ document.getElementById('shareBtn').onclick=()=>{
 
 
 async function applyShareStream(stream) {
-  if (shareStream) {
-    if (shareStream._cleanup) shareStream._cleanup();
-    shareStream.getTracks().forEach(t => t.stop());
+  if(shareStream){
+    if(shareStream._cleanup)shareStream._cleanup();
+    shareStream.getTracks().forEach(t=>t.stop());
   }
-  shareStream = stream;
+  shareStream=stream;
+
+  // Audio und Video zusammen in einen Stream
+  const combined = new MediaStream();
+  stream.getTracks().forEach(t => combined.addTrack(t));
+  
+  buildShareTile(combined, 'share-tile', myName+' (Teilt)');
+  
 
   // ── Debug: Was haben wir bekommen? ──
   const videoTracks = shareStream.getVideoTracks();
@@ -1901,7 +1945,7 @@ function addRemoteTile(pid, stream) {
 
   sl.oninput = () => {
     const val = parseInt(sl.value);
-    v.volume = Math.min(val / 100, 2.0);
+    v.volume = Math.min(val / 100, 1.0);
     v.muted = val === 0;
     vl.textContent = val + '%';
     vi.textContent = val === 0 ? '🔇' : val < 50 ? '🔉' : '🔊';
