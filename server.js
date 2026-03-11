@@ -53,7 +53,7 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
 
-app.use('/uploads', express.static(uploadsDir));
+
 app.use('/uploads', express.static(uploadsDir));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.json());

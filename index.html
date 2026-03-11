@@ -617,7 +617,7 @@ function generateToneBase64(freq,dur,type='sine',vol=0.5){
 }
 
 const SOUND_DATA={};
-const BASE = window.electronAPI ? '' : '/';
+const BASE = (window.electronAPI || location.protocol === 'file:') ? '' : '/';
 
 const SOUND_DEFS_SB = [
   { name:'Airhorn',    emoji:'📯', url:`${BASE}assets/sounds/airhorn.mp3` },
@@ -1387,7 +1387,7 @@ function makePeer(pid){
       addRemoteTile(pid,streams[0]||new MediaStream([track]));
     }
   };
-  return pc; n
+  return pc;
 }
 
 
