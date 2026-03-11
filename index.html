@@ -1903,6 +1903,8 @@ function addRemoteTile(pid, stream) {
   v.style.cssText = 'width:280px;height:158px;object-fit:contain;background:#000;border-radius:8px;display:block';
   v.muted = false;
   v.volume = 1.0;
+  v.setAttribute('autoplay', '');
+v.setAttribute('playsinline', '');
 
   const lbl = mk('div', 'video-label');
   const user = lastUserList.find(u => u.id === pid);

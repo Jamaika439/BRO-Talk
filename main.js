@@ -4,8 +4,10 @@ const fs = require('fs');
 
 // ── GPU & WebRTC Flags ──
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService,AudioServiceOutOfProcess');
 app.commandLine.appendSwitch('enable-features', 'WebRtcHideLocalIpsWithMdns,WebRTCPipeWireCapturer');
+app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-audio-output-limiter');
 app.commandLine.appendSwitch('webrtc-max-cpu-consumption-percentage', '100');
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
