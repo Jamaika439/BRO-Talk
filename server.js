@@ -54,6 +54,8 @@ const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
 
 app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.json());
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.post('/upload', upload.single('file'), (req, res) => {

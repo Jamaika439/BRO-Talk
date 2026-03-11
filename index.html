@@ -617,19 +617,21 @@ function generateToneBase64(freq,dur,type='sine',vol=0.5){
 }
 
 const SOUND_DATA={};
+const BASE = window.electronAPI ? '' : '/';
+
 const SOUND_DEFS_SB = [
-  { name:'Airhorn',    emoji:'📯', url:'assets/sounds/airhorn.mp3' },
-  { name:'Applaus',    emoji:'👏', url:'assets/sounds/applause.mp3' },
-  { name:'Vine Boom',  emoji:'💥', url:'assets/sounds/vine-boom.mp3' },
-  { name:'Bruh',       emoji:'😐', url:'assets/sounds/bruh.mp3' },
-  { name:'Wow',        emoji:'😮', url:'assets/sounds/anime-wow-sound-effect.mp3' },
-  { name:'Nein',       emoji:'🙋‍♂️', url:'assets/sounds/nein.mp3' },
-  { name:'Rizz',       emoji:'😎', url:'assets/sounds/rizz-sound-effect.mp3' },
-  { name:'Franzosen',  emoji:'🥖', url:'assets/sounds/franzosen-grrrrr_9R4znxK.mp3' },
-  { name:'Fresse',     emoji:'🤐', url:'assets/sounds/fresse.mp3' },
-  { name:'Sven',       emoji:'👋', url:'assets/sounds/sven_OpcGpxO.mp3' },
-  { name:'Yeah',       emoji:'🎉', url:'assets/sounds/yeah-boiii-i-i-i (1).mp3' },
-  { name:'Indian',     emoji:'🎵', url:'assets/sounds/indian-song.mp3' },
+  { name:'Airhorn',    emoji:'📯', url:`${BASE}assets/sounds/airhorn.mp3` },
+  { name:'Applaus',    emoji:'👏', url:`${BASE}assets/sounds/applause.mp3` },
+  { name:'Vine Boom',  emoji:'💥', url:`${BASE}assets/sounds/vine-boom.mp3` },
+  { name:'Bruh',       emoji:'😐', url:`${BASE}assets/sounds/bruh.mp3` },
+  { name:'Wow',        emoji:'😮', url:`${BASE}assets/sounds/anime-wow-sound-effect.mp3` },
+  { name:'Nein',       emoji:'🙋‍♂️', url:`${BASE}assets/sounds/nein.mp3` },
+  { name:'Rizz',       emoji:'😎', url:`${BASE}assets/sounds/rizz-sound-effect.mp3` },
+  { name:'Franzosen',  emoji:'🥖', url:`${BASE}assets/sounds/franzosen-grrrrr_9R4znxK.mp3` },
+  { name:'Fresse',     emoji:'🤐', url:`${BASE}assets/sounds/fresse.mp3` },
+  { name:'Sven',       emoji:'👋', url:`${BASE}assets/sounds/sven_OpcGpxO.mp3` },
+  { name:'Yeah',       emoji:'🎉', url:`${BASE}assets/sounds/yeah-boiii-i-i-i (1).mp3` },
+  { name:'Indian',     emoji:'🎵', url:`${BASE}assets/sounds/indian-song.mp3` },
 ];
 SOUND_DEFS_SB.forEach(s => { SOUND_DATA[s.name] = s.url; });
 
