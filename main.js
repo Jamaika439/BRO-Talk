@@ -42,10 +42,7 @@ function createWindow() {
   // ── Alle Permissions erlauben ──
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(true));
 
-  // ══════════════════════════════════════════════════════════════
-  // ██  WICHTIG: Display Media Handler für Desktop-Capture  ██
-  // ══════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // ██  Display Media Handler mit besserem Audio-Support  ██
 // ══════════════════════════════════════════════════════════════
 session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
@@ -96,6 +93,7 @@ session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) =
     callback({});
   }
 }, { useSystemPicker: false });
+
 
 
   mainWindow.loadFile('index.html');
