@@ -270,6 +270,18 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
   </div>
 </div>
 
+
+<div class="modal-bg" id="newVoiceModal">
+  <div class="mbox"><h3>Neuen Sprachkanal erstellen</h3>
+    <input id="newVoiceIn" type="text" placeholder="Kanal-Name" maxlength="32"/>
+    <div class="mrow">
+      <button class="btn-sec" id="cancelVoice">Abbrechen</button>
+      <button class="btn-acc" id="createVoice">Erstellen</button>
+    </div>
+  </div>
+</div>
+
+
 <div class="modal-bg" id="profileModal">
   <div class="mbox" style="width:420px">
     <h3>⚙️ Einstellungen</h3>
@@ -1098,10 +1110,17 @@ document.getElementById('addRoomBtn').onclick=()=>document.getElementById('newRo
 document.getElementById('cancelRoom').onclick=()=>document.getElementById('newRoomModal').classList.remove('on');
 document.getElementById('createRoom').onclick=()=>{const v=document.getElementById('newRoomIn').value.trim();if(!v)return;socket.emit('createRoom',{name:v});document.getElementById('newRoomIn').value='';document.getElementById('newRoomModal').classList.remove('on');};
 document.getElementById('newRoomIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('createRoom').click();};
-document.getElementById('addVoiceBtn').onclick=()=>{
-  const n=prompt('Sprachkanal-Name:');
-  if(n?.trim())socket.emit('createVoiceChannel',{name:n.trim()});
+document.getElementById('addVoiceBtn').onclick=()=>document.getElementById('newVoiceModal').classList.add('on');
+document.getElementById('cancelVoice').onclick=()=>document.getElementById('newVoiceModal').classList.remove('on');
+document.getElementById('createVoice').onclick=()=>{
+  const v=document.getElementById('newVoiceIn').value.trim();
+  if(!v)return;
+  socket.emit('createVoiceChannel',{name:v});
+  document.getElementById('newVoiceIn').value='';
+  document.getElementById('newVoiceModal').classList.remove('on');
 };
+document.getElementById('newVoiceIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('createVoice').click();};
+
 
 // ── MESSAGES ──
 function renderMsg(m,scroll=false){
@@ -1560,145 +1579,92 @@ async function openStreamPicker(){
 }
 
 function closeStreamPicker(){
-  // Auswahl im Main-Prozess zurücksetzen
-  if (isElectron()) {
-    window.electronAPI.clearSourceSelection().catch(() => {});
-  }
-  
-  if (spPickerStream && !spPickerStream._noStream) {
-    spPickerStream.getTracks().forEach(t => t.stop());
-  }
-  spPickerStream = null;
-  
-  const prev = document.getElementById('spPreview');
-  prev.srcObject = null;
-  prev.load();
-  
+  if(isElectron())window.electronAPI.clearSourceSelection().catch(()=>{});
+  if(spPickerStream&&!spPickerStream._noStream)spPickerStream.getTracks().forEach(t=>t.stop());
+  spPickerStream=null;
+  const prev=document.getElementById('spPreview');
+  prev.srcObject=null;prev.load();
   document.getElementById('spScreensGrid')?.remove();
   document.getElementById('streamPickerModal').classList.remove('on');
 }
 
-
 async function confirmStreamPicker(){
-  const camId = document.getElementById('spCamSelect').value;
-  let stream = null;
+  const camId=document.getElementById('spCamSelect').value;
+  let stream=null;
+  const confirmBtn=document.getElementById('spConfirm');
+  confirmBtn.disabled=true;confirmBtn.textContent='⏳ Starte…';
 
-  const confirmBtn = document.getElementById('spConfirm');
-  confirmBtn.disabled = true;
-  confirmBtn.textContent = '⏳ Starte…';
-
-  try {
-    if (spMode === 'cam') {
-      // ── Nur Kamera ──
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: camId ? {exact: camId} : undefined, width: {ideal: 1280}, height: {ideal: 720} },
-        audio: false
+  try{
+    if(spMode==='cam'){
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:1280},height:{ideal:720}},
+        audio:false
       });
-
-    } else if (isElectron()) {
-      // ══════════════════════════════════════════════
-      // ██  ELECTRON: getDisplayMedia verwenden!  ██
-      // ══════════════════════════════════════════════
-      
-      const srcId = spPickerStream?._srcId;
-      
-      // Vorschau stoppen
-      if (spPickerStream && !spPickerStream._noStream) {
-        spPickerStream.getTracks().forEach(t => t.stop());
-      }
-      spPickerStream = null;
-      document.getElementById('spPreview').srcObject = null;
-
-      if (!srcId) {
+    }else if(isElectron()){
+      const srcId=spPickerStream?._srcId;
+      if(spPickerStream&&!spPickerStream._noStream)spPickerStream.getTracks().forEach(t=>t.stop());
+      spPickerStream=null;
+      document.getElementById('spPreview').srcObject=null;
+      if(!srcId){
         alert('Bitte erst eine Quelle in der Liste auswählen!');
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = '✅ Stream starten';
+        confirmBtn.disabled=false;confirmBtn.textContent='✅ Stream starten';
         return;
       }
-
-      // ── WICHTIG: Quelle im Main-Prozess registrieren ──
-      console.log('[Stream] Selecting source:', srcId);
+      console.log('[Stream] Selecting source:',srcId);
       await window.electronAPI.selectSource(srcId);
-
-      // ── Jetzt getDisplayMedia aufrufen ──
-      // Der Main-Prozess verwendet automatisch die vorgewählte Quelle!
       console.log('[Stream] Calling getDisplayMedia...');
-      
-      try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            frameRate: { ideal: 30, max: 60 },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: true  // System-Audio wenn verfügbar
+      try{
+        stream=await navigator.mediaDevices.getDisplayMedia({
+          video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
+          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:48000}
         });
         console.log('[Stream] getDisplayMedia success!');
-      } catch (e) {
-        console.error('[Stream] getDisplayMedia failed:', e);
+      }catch(e){
+        console.error('[Stream] getDisplayMedia failed:',e);
         await window.electronAPI.clearSourceSelection();
         throw e;
       }
-
-      // Bei "Beides" Kamera hinzufügen
-      if (spMode === 'both' && stream) {
-        try {
-          const camS = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: camId ? {exact: camId} : undefined, width: {ideal: 320}, height: {ideal: 180} },
-            audio: false
+      if(spMode==='both'&&stream){
+        try{
+          const camS=await navigator.mediaDevices.getUserMedia({
+            video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:320},height:{ideal:180}},
+            audio:false
           });
-          stream = await createCompositeStream(stream, camS);
+          stream=await createCompositeStream(stream,camS);
           console.log('[Stream] Composite stream created');
-        } catch (e) {
-          console.warn('[Stream] Camera for composite failed:', e.message);
-        }
+        }catch(e){console.warn('[Stream] Camera for composite failed:',e.message);}
       }
-
-    } else {
-      // ── Browser (nicht Electron) ──
-      if (spMode === 'screen') {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: {ideal: 30}, cursor: 'motion' },
-          audio: true
+    }else{
+      if(spMode==='screen'){
+        stream=await navigator.mediaDevices.getDisplayMedia({
+          video:{frameRate:{ideal:30},cursor:'motion'},
+          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:48000}
         });
-      } else {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: {ideal: 30}, cursor: 'motion' },
-          audio: true
+      }else{
+        const screenStream=await navigator.mediaDevices.getDisplayMedia({
+          video:{frameRate:{ideal:30},cursor:'motion'},
+          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:48000}
         });
-        const camS = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: camId ? {exact: camId} : undefined, width: {ideal: 320}, height: {ideal: 180} },
-          audio: false
+        const camS=await navigator.mediaDevices.getUserMedia({
+          video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:320},height:{ideal:180}},
+          audio:false
         });
-        stream = await createCompositeStream(screenStream, camS);
+        stream=await createCompositeStream(screenStream,camS);
       }
     }
-  } catch (e) {
-    console.error('[Stream] Error:', e);
-    if (e.name !== 'NotAllowedError') {
-      alert('Stream-Fehler: ' + e.message);
-    }
-    confirmBtn.disabled = false;
-    confirmBtn.textContent = '✅ Stream starten';
+  }catch(e){
+    console.error('[Stream] Error:',e);
+    if(e.name!=='NotAllowedError')alert('Stream-Fehler: '+e.message);
+    confirmBtn.disabled=false;confirmBtn.textContent='✅ Stream starten';
     return;
   }
 
-  confirmBtn.disabled = false;
-  confirmBtn.textContent = '✅ Stream starten';
-  
-  // Modal schließen
+  confirmBtn.disabled=false;confirmBtn.textContent='✅ Stream starten';
   document.getElementById('spScreensGrid')?.remove();
   document.getElementById('streamPickerModal').classList.remove('on');
-
-  // Stream anwenden
-  if (spMode === 'cam') {
-    await applyCamStream(stream);
-  } else {
-    await applyShareStream(stream);
-  }
+  if(spMode==='cam')await applyCamStream(stream);
+  else await applyShareStream(stream);
 }
-
-
 
 async function createCompositeStream(screenStream,camStream2){
   const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;
@@ -1714,108 +1680,59 @@ async function createCompositeStream(screenStream,camStream2){
   return compStream;
 }
 
-// ── SCREENSHARE ──
 document.getElementById('shareBtn').onclick=()=>{
   if(!currentVoiceRoom){alert('Erst Sprachkanal beitreten!');return;}
   if(shareStream){stopShare();return;}
   openStreamPicker();
 };
 
-
-async function applyShareStream(stream) {
+async function applyShareStream(stream){
   if(shareStream){
     if(shareStream._cleanup)shareStream._cleanup();
     shareStream.getTracks().forEach(t=>t.stop());
   }
   shareStream=stream;
 
-  // Audio und Video zusammen in einen Stream
-  const combined = new MediaStream();
-  stream.getTracks().forEach(t => combined.addTrack(t));
-  
-  buildShareTile(combined, 'share-tile', myName+' (Teilt)');
-  
+  const videoTracks=shareStream.getVideoTracks();
+  const audioTracks=shareStream.getAudioTracks();
+  console.log('[Share] Video tracks:',videoTracks.length);
+  console.log('[Share] Audio tracks:',audioTracks.length);
+  audioTracks.forEach((t,i)=>console.log(`[Share] Audio track ${i}:`,t.label,t.enabled,t.readyState));
 
-  // ── Debug: Was haben wir bekommen? ──
-  const videoTracks = shareStream.getVideoTracks();
-  const audioTracks = shareStream.getAudioTracks();
-  console.log('[Share] Video tracks:', videoTracks.length);
-  console.log('[Share] Audio tracks:', audioTracks.length);
-  audioTracks.forEach((t, i) => {
-    console.log(`[Share] Audio track ${i}:`, t.label, t.enabled, t.readyState);
-  });
-
-  buildShareTile(shareStream, 'share-tile', myName + ' (Teilt)');
+  buildShareTile(shareStream,'share-tile',myName+' (Teilt)');
   document.getElementById('shareBtn').classList.add('active');
-  updateFlyingWindow(shareStream, myName + ' (Teilt)');
+  updateFlyingWindow(shareStream,myName+' (Teilt)');
 
-  // ══════════════════════════════════════════════════════════
-  // ██  Tracks an alle Peers senden  ██
-  // ══════════════════════════════════════════════════════════
-  for (const [pid, pc] of Object.entries(peerConns)) {
-    
-    // ── VIDEO Track hinzufügen ──
-    const vt = videoTracks[0];
-    if (vt) {
-      const existingVideoSender = pc.getSenders().find(s => 
-        s.track?.kind === 'video' && s.track?.id !== localStream?.getVideoTracks()[0]?.id
-      );
-      
-      if (existingVideoSender) {
-        console.log(`[Share] Replacing video track for peer ${pid}`);
-        await existingVideoSender.replaceTrack(vt).catch(e => console.warn('[Share] Replace video failed:', e));
-      } else {
-        console.log(`[Share] Adding video track for peer ${pid}`);
-        try {
-          pc.addTrack(vt, shareStream);
-        } catch (e) {
-          console.warn('[Share] Add video failed:', e);
-        }
+  for(const [pid,pc] of Object.entries(peerConns)){
+    const vt=videoTracks[0];
+    if(vt){
+      const existingVideoSender=pc.getSenders().find(s=>s.track?.kind==='video'&&s.track?.id!==localStream?.getVideoTracks()[0]?.id);
+      if(existingVideoSender){
+        await existingVideoSender.replaceTrack(vt).catch(e=>console.warn('[Share] Replace video failed:',e));
+      }else{
+        try{pc.addTrack(vt,shareStream);}catch(e){console.warn('[Share] Add video failed:',e);}
       }
-      await setMaxBitrate(pc.getSenders().find(s => s.track === vt), 8000);
+      await setMaxBitrate(pc.getSenders().find(s=>s.track===vt),8000);
     }
-
-    // ── AUDIO Track hinzufügen (System-Audio) ──
-    if (audioTracks.length > 0) {
-      const at = audioTracks[0];
-      
-      // Suche nach existierendem System-Audio Sender (nicht Mikrofon!)
-      const existingAudioSenders = pc.getSenders().filter(s => s.track?.kind === 'audio');
-      const micTrackId = localStream?.getAudioTracks()[0]?.id;
-      
-      // Finde einen freien Audio-Slot oder einen der nicht das Mikro ist
-      let audioSender = existingAudioSenders.find(s => s.track?.id !== micTrackId);
-      
-      if (audioSender) {
-        console.log(`[Share] Replacing system audio track for peer ${pid}`);
-        await audioSender.replaceTrack(at).catch(e => console.warn('[Share] Replace audio failed:', e));
-      } else {
-        console.log(`[Share] Adding NEW system audio track for peer ${pid}`);
-        try {
-          pc.addTrack(at, shareStream);
-        } catch (e) {
-          console.warn('[Share] Add audio failed:', e);
-        }
+    if(audioTracks.length>0){
+      const at=audioTracks[0];
+      const existingAudioSenders=pc.getSenders().filter(s=>s.track?.kind==='audio');
+      const micTrackId=localStream?.getAudioTracks()[0]?.id;
+      let audioSender=existingAudioSenders.find(s=>s.track?.id!==micTrackId);
+      if(audioSender){
+        await audioSender.replaceTrack(at).catch(e=>console.warn('[Share] Replace audio failed:',e));
+      }else{
+        try{pc.addTrack(at,shareStream);}catch(e){console.warn('[Share] Add audio failed:',e);}
       }
-    } else {
-      console.log(`[Share] No audio tracks to share with peer ${pid}`);
     }
-
-    // ── Renegotiation ──
-    try {
-      console.log(`[Share] Creating offer for peer ${pid}`);
-      const offer = await pc.createOffer();
+    try{
+      const offer=await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit('rtc-offer', { targetId: pid, offer: pc.localDescription });
-    } catch (e) {
-      console.warn('[Share] Renegotiation failed:', e);
-    }
+      socket.emit('rtc-offer',{targetId:pid,offer:pc.localDescription});
+    }catch(e){console.warn('[Share] Renegotiation failed:',e);}
   }
 
-  // ── Track-Ende Handler ──
-  if (videoTracks[0]) {
-    videoTracks[0].onended = stopShare;
-  }
+  if(videoTracks[0])videoTracks[0].onended=stopShare;
 }
 
 
@@ -1845,6 +1762,7 @@ async function startCamStream(){
     await applyCamStream(stream);
   }catch(e){alert('Kamera: '+e.message);}
 }
+
 async function applyCamStream(stream){
   if(camStream)camStream.getTracks().forEach(t=>t.stop());
   camStream=stream;
