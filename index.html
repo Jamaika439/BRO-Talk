@@ -1071,19 +1071,37 @@ function renderRoomList(rooms){
     el.appendChild(d);
   });
 }
+
 function renderVoiceList(){
   const el=document.getElementById('voiceList');el.innerHTML='';
   VOICE_CHANNELS.forEach(vc=>{
     const d=mk('div','voice-ch'+(vc===currentVoiceRoom?' active':''));
-    d.innerHTML=`🔈 <span style="flex:1">${esc(vc)}</span>`;d.onclick=()=>joinVoice(vc);el.appendChild(d);
+    d.innerHTML=`🔈 <span style="flex:1">${esc(vc)}</span>`;
+    d.onclick=()=>joinVoice(vc);
+    
+    // ← Löschen Button (außer Standard-Kanäle)
+    if(!['Lounge','Gaming VC','Musik VC'].includes(vc)){
+      const x=document.createElement('button');
+      x.textContent='✕';
+      x.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;padding:0 4px;font-size:.75rem;opacity:0;transition:.15s';
+      x.onclick=e=>{e.stopPropagation();if(confirm(`"${vc}" löschen?`))socket.emit('deleteVoiceChannel',{name:vc});};
+      d.onmouseenter=()=>x.style.opacity='1';
+      d.onmouseleave=()=>x.style.opacity='0';
+      d.appendChild(x);
+    }
+    el.appendChild(d);
   });
 }
+
 function switchRoom(r){if(r===myRoom)return;socket.emit('changeRoom',{newRoom:r});myRoom=r;}
 document.getElementById('addRoomBtn').onclick=()=>document.getElementById('newRoomModal').classList.add('on');
 document.getElementById('cancelRoom').onclick=()=>document.getElementById('newRoomModal').classList.remove('on');
 document.getElementById('createRoom').onclick=()=>{const v=document.getElementById('newRoomIn').value.trim();if(!v)return;socket.emit('createRoom',{name:v});document.getElementById('newRoomIn').value='';document.getElementById('newRoomModal').classList.remove('on');};
 document.getElementById('newRoomIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('createRoom').click();};
-document.getElementById('addVoiceBtn').onclick=()=>{const n=prompt('Sprachkanal-Name:');if(n?.trim())socket.emit('createVoiceChannel',{name:n.trim()});};
+document.getElementById('addVoiceBtn').onclick=()=>{
+  const n=prompt('Sprachkanal-Name:');
+  if(n?.trim())socket.emit('createVoiceChannel',{name:n.trim()});
+};
 
 // ── MESSAGES ──
 function renderMsg(m,scroll=false){

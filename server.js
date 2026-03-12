@@ -100,6 +100,13 @@ io.on('connection', socket => {
     socket.emit('profileUpdated', { name: u.name, color: u.color, avatar: u.avatar });
   });
 
+  socket.on('deleteVoiceChannel',({name})=>{
+  if(!name||['Lounge','Gaming VC','Musik VC'].includes(name))return;
+  db.voiceChannels=db.voiceChannels.filter(v=>v!==name);
+  saveDB(db);
+  io.emit('voiceChannelList',db.voiceChannels);
+});
+
   socket.on('setStatus', status => {
     if (users[socket.id]) { users[socket.id].status = status; broadcastUsers(); }
   });
