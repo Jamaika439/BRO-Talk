@@ -1596,10 +1596,12 @@ async function confirmStreamPicker(){
 
   try{
     if(spMode==='cam'){
-      stream=await navigator.mediaDevices.getUserMedia({
-        video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:1280},height:{ideal:720}},
-        audio:false
-      });
+      
+      stream=await navigator.mediaDevices.getDisplayMedia({
+  video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
+  audio:true
+});
+
     }else if(isElectron()){
       const srcId=spPickerStream?._srcId;
       if(spPickerStream&&!spPickerStream._noStream)spPickerStream.getTracks().forEach(t=>t.stop());
@@ -1614,10 +1616,12 @@ async function confirmStreamPicker(){
       await window.electronAPI.selectSource(srcId);
       console.log('[Stream] Calling getDisplayMedia...');
       try{
+        
         stream=await navigator.mediaDevices.getDisplayMedia({
-          video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
-          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:48000}
-        });
+  video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
+  audio:true
+});
+
         console.log('[Stream] getDisplayMedia success!');
       }catch(e){
         console.error('[Stream] getDisplayMedia failed:',e);
@@ -1637,13 +1641,13 @@ async function confirmStreamPicker(){
     }else{
       if(spMode==='screen'){
         stream=await navigator.mediaDevices.getDisplayMedia({
-          video:{frameRate:{ideal:30},cursor:'motion'},
-          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:48000}
-        });
+  video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
+  audio:true
+});
       }else{
         const screenStream=await navigator.mediaDevices.getDisplayMedia({
           video:{frameRate:{ideal:30},cursor:'motion'},
-          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:48000}
+          audio:true
         });
         const camS=await navigator.mediaDevices.getUserMedia({
           video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:320},height:{ideal:180}},
