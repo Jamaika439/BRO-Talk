@@ -302,8 +302,11 @@ io.on('connection', socket => {
     const caller = users[socket.id]; if (!caller) return;
     io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
   });
-  socket.on('privateCallAccept', ({ targetId }) => io.to(targetId).emit('privateCallAccepted', { fromId: socket.id }));
-  socket.on('privateCallReject', ({ targetId }) => io.to(targetId).emit('privateCallRejected', { fromId: socket.id }));
+  socket.on('privateCallAccept', ({ targetId }) => {
+  const privateRoom = `private_${[socket.id, targetId].sort().join('_')}`;
+  io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
+  io.to(socket.id).emit('privateCallAccepted', { fromId: targetId, privateRoom });
+});
 
   socket.on('disconnect', () => {
     clearInterval(pingInterval);

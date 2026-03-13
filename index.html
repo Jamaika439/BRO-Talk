@@ -261,7 +261,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 <!-- LOGIN -->
 <div id="loginOverlay">
   <div class="lbox">
-    <h1>👾 Bro Talk</h1>
+    <h1><img src="assets/logo.png" style="width:52px;height:52px;border-radius:10px;vertical-align:middle;margin-right:10px">Bro Talk</h1>
     <p>Wähl einen Avatar und leg los</p>
     <div class="avatar-pick" id="avPick"></div>
     <div class="color-row" id="colPick"></div>
@@ -466,7 +466,11 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 
 <!-- SOUNDBOARD -->
 <div class="modal-bg" id="soundModal">
-  <div class="mbox" style="width:420px"><h3>🎵 Soundboard</h3>
+  <div class="mbox" style="width:420px">
+    <div style="display:flex;align-items:center;margin-bottom:12px">
+      <button id="closeSoundsX" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:2px 8px;border-radius:5px;margin-right:8px" onclick="document.getElementById('soundModal').classList.remove('on')">✕</button>
+      <h3 style="margin-bottom:0">🎵 Soundboard</h3>
+    </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <span style="font-size:.8rem;color:var(--muted)">🔊</span>
       <input type="range" id="sbVolume" min="0" max="100" value="100" style="width:120px;accent-color:var(--accent);height:4px">
@@ -1145,7 +1149,14 @@ function doJoin(){
   });
 
   socket.on('connect',()=>{myId=socket.id;socket.emit('join',{name,room,color:myColor,avatar:myAvatar});});
-  socket.on('joined',({name:n,room:r})=>{myRoom=r;updateSelfBar();document.getElementById('chName').textContent=r;document.getElementById('loginOverlay').style.display='none';document.getElementById('msgInput').focus();});
+  socket.on('joined',({name:n,room:r})=>{
+  myRoom=r;updateSelfBar();
+  document.getElementById('chName').textContent=r;
+  document.getElementById('loginOverlay').style.display='none';
+  setInputsLocked(false);
+  document.getElementById('msgInput').focus();
+});
+
   socket.on('history',msgs=>{document.getElementById('chatArea').innerHTML='';msgs.forEach(m=>renderMsg(m));scrollChat();});
   socket.on('message',m=>{renderMsg(m,true);if(m.type!=='system'&&m.userId!==myId)playUISound('message');});
   socket.on('userList',newList=>{
@@ -1187,9 +1198,9 @@ function doJoin(){
   socket.on('dmHistory',onDmHistory);
   socket.on('privateCallIncoming',onCallIncoming);
   socket.on('privateCallAccepted',({fromId,privateRoom})=>{
-    sysLocal('✅ Anruf angenommen');
-    if(privateRoom)joinVoice(privateRoom);
-  });
+  sysLocal('✅ Anruf angenommen – Privater Raum wird geöffnet');
+  if(privateRoom)joinVoice(privateRoom);
+});
   socket.on('privateCallRejected',()=>sysLocal('❌ Anruf abgelehnt'));
   socket.on('playSound',({soundData,soundName,fromName})=>{
     stopCurrentSound();
@@ -1361,18 +1372,31 @@ document.getElementById('gifPicker').onclick=e=>e.stopPropagation();
 function closeAllPickers(){document.getElementById('emojiPicker').classList.remove('on');document.getElementById('gifPicker').classList.remove('on');}
 function insertText(t){const i=document.getElementById('msgInput');i.value+=t;i.focus();}
 function switchGifSrc(src,btn){gifSrc=src;document.querySelectorAll('.gif-tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('gifSearch').value='';loadTrendingGifs();}
+
 async function loadTrendingGifs(){
   const g=document.getElementById('gifGrid');g.innerHTML='<span style="color:var(--muted);font-size:.8rem">Laden…</span>';
-  if(gifSrc==='giphy'){try{const r=await fetch(`https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=20&rating=g`);const d=await r.json();renderGiphyResults(d.data);}catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}}
-  else{g.innerHTML='<span style="color:var(--muted);font-size:.8rem">Tippe um Tenor-GIFs zu suchen</span>';}
+  if(gifSrc==='giphy'){
+    try{const r=await fetch(`https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=60&rating=g`);const d=await r.json();renderGiphyResults(d.data);}
+    catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}
+  }else{
+    try{const r=await fetch(`https://api.tenor.com/v1/featured?limit=60&key=LIVDSRZULELA`);const d=await r.json();
+      g.innerHTML='';
+      (d.results||[]).forEach(gif=>{
+        const img=mk('img');img.src=gif.media[0].tinygif.url;img.loading='lazy';
+        img.onclick=()=>{socket.emit('message',{text:gif.media[0].gif.url,room:myRoom,type:'image',fileUrl:gif.media[0].gif.url,fileName:'gif'});closeAllPickers();};
+        g.appendChild(img);
+      });
+      if(!d.results?.length)g.innerHTML='<span style="color:var(--muted);font-size:.8rem">Keine GIFs</span>';
+    }catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}
+  }
 }
 let gifDebounce;
 document.getElementById('gifSearch').oninput=function(){clearTimeout(gifDebounce);gifDebounce=setTimeout(()=>searchGifs(this.value),500);};
 async function searchGifs(q){
   const g=document.getElementById('gifGrid');g.innerHTML='<span style="color:var(--muted);font-size:.8rem">Laden…</span>';
   if(!q.trim()){loadTrendingGifs();return;}
-  if(gifSrc==='giphy'){try{const r=await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=20&rating=g`);const d=await r.json();renderGiphyResults(d.data);}catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}}
-  else{try{const r=await fetch(`https://api.tenor.com/v1/search?q=${encodeURIComponent(q)}&limit=20&key=LIVDSRZULELA`);const d=await r.json();g.innerHTML='';(d.results||[]).forEach(gif=>{const img=mk('img');img.src=gif.media[0].tinygif.url;img.loading='lazy';img.onclick=()=>{socket.emit('message',{text:gif.media[0].gif.url,room:myRoom,type:'image',fileUrl:gif.media[0].gif.url,fileName:'gif'});closeAllPickers();};g.appendChild(img);});if(!d.results?.length)g.innerHTML='<span style="color:var(--muted);font-size:.8rem">Keine GIFs</span>';}catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}}
+  if(gifSrc==='giphy'){try{const r=await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=60&rating=g`);const d=await r.json();renderGiphyResults(d.data);}catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}}
+  else{try{const r=await fetch(`https://api.tenor.com/v1/search?q=${encodeURIComponent(q)}&limit=60&key=LIVDSRZULELA`);const d=await r.json();g.innerHTML='';(d.results||[]).forEach(gif=>{const img=mk('img');img.src=gif.media[0].tinygif.url;img.loading='lazy';img.onclick=()=>{socket.emit('message',{text:gif.media[0].gif.url,room:myRoom,type:'image',fileUrl:gif.media[0].gif.url,fileName:'gif'});closeAllPickers();};g.appendChild(img);});if(!d.results?.length)g.innerHTML='<span style="color:var(--muted);font-size:.8rem">Keine GIFs</span>';}catch{g.innerHTML='<span style="color:var(--red);font-size:.8rem">Fehler</span>';}}
 }
 function renderGiphyResults(data){
   const g=document.getElementById('gifGrid');g.innerHTML='';
@@ -1451,7 +1475,7 @@ document.getElementById('customAvClear').onclick=()=>{
   localStorage.removeItem('brotalk_customav');
   applyCustomAv();
 };
-document.getElementById('cancelProfile').onclick=()=>document.getElementById('profileModal').classList.remove('on');
+
 document.getElementById('logoutBtn').onclick=()=>{
   if(!confirm('Wirklich ausloggen? Du kannst danach einen neuen Charakter erstellen.'))return;
   if(currentVoiceRoom)leaveVoice();
@@ -1466,9 +1490,25 @@ document.getElementById('logoutBtn').onclick=()=>{
   document.getElementById('chatArea').innerHTML='';
   document.getElementById('roomList').innerHTML='';
   document.getElementById('userList').innerHTML='';
+  // Inputs sperren
+  setInputsLocked(true);
   document.getElementById('loginOverlay').style.display='flex';
   setTimeout(()=>document.getElementById('nameIn').focus(),100);
 };
+
+function setInputsLocked(locked){
+  const ids=['msgInput','dmInput'];
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.disabled=locked;el.placeholder=locked?'Bitte erst einloggen…':'Nachricht schreiben…';}
+  });
+  const btns=['sendBtn','fileBtn','emojiBtn','gifBtn','sbBtn','dmSendBtn'];
+  btns.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.disabled=locked;
+  });
+}
+
 document.getElementById('saveProfile').onclick=()=>{
   const name=document.getElementById('profNameIn').value.trim()||myName;
   // custom Avatar hat Vorrang vor Emoji
@@ -2211,41 +2251,35 @@ function stopCurrentSound(){if(currentSound){try{currentSound.pause();currentSou
 
 function renderSoundboard(){
   const g=document.getElementById('sbGrid');g.innerHTML='';
- SOUND_DEFS_SB.forEach(s=>{
-  const b=mk('button','sb-btn');
-  b.innerHTML=`<span class="sb-icon">${s.emoji}</span><span>${esc(s.name)}</span>`;
-  b.onclick=()=>{
-    stopCurrentSound();
-    currentSound=new Audio(s.url);        // ← direkt URL
-    currentSound.volume=soundVolume;
-    currentSound.play().catch(()=>{});
-    if(socket&&myRoom)socket.emit('playSound',{room:myRoom,soundName:s.name,soundData:s.url});
-  };
-  g.appendChild(b);
-});
-
+  SOUND_DEFS_SB.forEach(s=>{
+    const b=mk('button','sb-btn');
+    b.innerHTML=`<span class="sb-icon">${s.emoji}</span><span>${esc(s.name)}</span>`;
+   b.onclick=()=>{
+      stopCurrentSound();
+      currentSound=new Audio(data);
+      currentSound.volume=soundVolume;
+      currentSound.play().catch(()=>{});
+      if(socket&&myRoom)socket.emit('playSound',{room:myRoom,soundName:name,soundData:data});
+    };
+    g.appendChild(b);
+  });
   Object.entries(sounds).forEach(([name,data])=>{
     const wrap=mk('div');wrap.style.position='relative';
     const b=mk('button','sb-btn');
     b.innerHTML=`<span class="sb-icon">🎵</span><span>${esc(name)}</span>`;
-    b.onclick=()=>{stopCurrentSound();currentSound=playBase64(data);if(socket&&myRoom)socket.emit('playSound',{room:myRoom,soundName:name,soundData:data});};
+    b.onclick=()=>{
+      stopCurrentSound();
+      currentSound=new Audio(data);
+      currentSound.volume=soundVolume;
+      currentSound.play().catch(()=>{});
+      if(socket&&myRoom)socket.emit('playSound',{room:myRoom,soundName:name,soundData:data});
+    };
     const del=document.createElement('button');del.textContent='✕';
     del.style.cssText='position:absolute;top:4px;right:4px;background:var(--red);border:none;color:#fff;border-radius:4px;cursor:pointer;padding:1px 5px;font-size:.7rem;z-index:1';
     del.onclick=e=>{e.stopPropagation();delete sounds[name];localStorage.setItem('brotalk_sounds',JSON.stringify(sounds));renderSoundboard();};
     wrap.append(b,del);g.appendChild(wrap);
   });
-}
-document.getElementById('sbUpload').onchange=function(){
-  const file=this.files[0];if(!file)return;
-  const r=new FileReader();r.onload=e=>{sounds[file.name]=e.target.result;localStorage.setItem('brotalk_sounds',JSON.stringify(sounds));renderSoundboard();};r.readAsDataURL(file);this.value='';
-};
-function playBase64(data){
-  if(!data)return null;
-  const a=new Audio();a.src=data;a.volume=soundVolume;
-  const p=a.play();
-  if(p&&p.catch)p.catch(()=>{document.addEventListener('click',()=>a.play().catch(()=>{}),{once:true});});
-  return a;
-}
+} 
 function showSoundToast(msg){const t=document.getElementById('soundToast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);}
 
 // ── DM ──
@@ -2288,7 +2322,10 @@ function onDmMsg(msg){
   else if(!msg.toSelf){dmUnread[otherId]=(dmUnread[otherId]||0)+1;renderUserList(lastUserList);playUISound('dm');}
 }
 
-function startPrivateCall(user){socket.emit('privateCall',{targetId:user.id});joinVoice('Lounge');}
+function startPrivateCall(user){
+  socket.emit('privateCall',{targetId:user.id});
+  // Warten auf privateCallAccepted vom Server – der schickt den Raumnamen
+}
 function onCallIncoming({fromId,fromName}){
   pendingCallFrom=fromId;
   document.getElementById('toastName').textContent=`📞 ${fromName} ruft an`;
@@ -2300,6 +2337,7 @@ document.getElementById('toastAcc').onclick=()=>{
   if(!pendingCallFrom)return;
   socket.emit('privateCallAccept',{targetId:pendingCallFrom});
   pendingCallFrom=null;
+  // joinVoice kommt automatisch via privateCallAccepted Event
 };
 document.getElementById('toastRej').onclick=()=>{document.getElementById('callToast').classList.remove('on');if(!pendingCallFrom)return;socket.emit('privateCallReject',{targetId:pendingCallFrom});pendingCallFrom=null;};
 
