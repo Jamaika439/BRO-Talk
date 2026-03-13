@@ -1054,6 +1054,7 @@ document.getElementById('nameIn').onkeydown=e=>{if(e.key==='Enter')document.getE
 document.getElementById('roomIn').onkeydown=e=>{if(e.key==='Enter')doJoin();};
 
 let pendingRoom=null;
+let pendingVoiceRoom=null;
 
 function switchRoom(r){
   if(r===myRoom)return;
@@ -1198,7 +1199,8 @@ socket.on('voicePasswordWrong',()=>{
   document.getElementById('voicePwIn').value='';
   document.getElementById('voicePwIn').style.outline='2px solid var(--red)';
   setTimeout(()=>document.getElementById('voicePwIn').style.outline='',1000);
-});
+}); 
+
 }
 
 function updateSelfBar(){
