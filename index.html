@@ -334,7 +334,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     </div>
     <button class="btn-acc" id="openAppearBtn" style="width:100%;margin-bottom:8px">🎨 Design & Töne</button>
     <button class="btn-acc" id="openAudioBtn" style="width:100%;margin-bottom:12px;background:var(--bg4);color:var(--text)">🎙 Audio-Einstellungen</button>
-    <div class="mrow"><button class="btn-sec" id="cancelProfile">Abbrechen</button><button class="btn-acc" id="saveProfile">Speichern</button></div>
+   <div class="mrow"><button class="btn-sec" id="cancelProfile">Abbrechen</button><button class="btn-sec" id="logoutBtn" style="color:var(--red);border:1px solid var(--red)">🚪 Ausloggen</button><button class="btn-acc" id="saveProfile">Speichern</button></div>
   </div>
 </div>
 
@@ -732,11 +732,27 @@ try{const sv=localStorage.getItem('brotalk_soundvolume');if(sv!=null)soundVolume
 let gifSrc='giphy';
 let pasteBlob=null;
 let userVolumes={};
-let selectedMicId=null,selectedSpkId=null,selectedCamId=null,masterVolume=1.0,micGain=1.0;
-let nsMode='basic';
-let nsEnabled=true;
-let noiseGateEnabled=true,noiseGateThreshold=0.08;
-let voiceIsolationEnabled=true;
+function loadAudioSettings() {
+  try { return JSON.parse(localStorage.getItem('brotalk_audio') || '{}'); } catch { return {}; }
+}
+function saveAudioSettings_ls() {
+  localStorage.setItem('brotalk_audio', JSON.stringify({
+    selectedMicId, selectedSpkId, selectedCamId,
+    masterVolume, micGain, nsMode,
+    noiseGateEnabled, noiseGateThreshold, voiceIsolationEnabled
+  }));
+}
+const _audio = loadAudioSettings();
+let selectedMicId       = _audio.selectedMicId       ?? null;
+let selectedSpkId       = _audio.selectedSpkId       ?? null;
+let selectedCamId       = _audio.selectedCamId       ?? null;
+let masterVolume        = _audio.masterVolume        ?? 1.0;
+let micGain             = _audio.micGain             ?? 1.0;
+let nsMode              = _audio.nsMode              ?? 'basic';
+let nsEnabled           = true;
+let noiseGateEnabled    = _audio.noiseGateEnabled    ?? true;
+let noiseGateThreshold  = _audio.noiseGateThreshold  ?? 0.08;
+let voiceIsolationEnabled = _audio.voiceIsolationEnabled ?? true;
 let micTestStream=null,micTestCtx=null,micTestAnim=null;
 let ngMonitorCtx=null,ngMonitorAnim=null,ngMonitorStream=null;
 let spPickerStream=null,spMode='screen';
@@ -860,10 +876,18 @@ function playUISound(name){
   initStreamPicker();
   initNoiseGateUI();
   updateNsCheckBtn();
-  document.getElementById('nsCheckBtn').onclick=()=>{nsEnabled=!nsEnabled;nsMode=nsEnabled?'basic':'off';updateNsCheckBtn();};
+document.getElementById('nsCheckBtn').onclick=()=>{nsEnabled=!nsEnabled;nsMode=nsEnabled?'basic':'off';updateNsCheckBtn();};
   document.getElementById('reloginBtn').onclick=doRelogin;
   const sp=getSavedProfile();
-  if(sp.name)document.getElementById('nameIn').value=sp.name;
+  if(sp.name){
+    document.getElementById('nameIn').value=sp.name;
+    document.getElementById('roomIn').value=sp.room||'';
+    myAvatar=sp.avatar||myAvatar;
+    myColor=sp.color||myColor;
+    document.querySelectorAll('.av-opt').forEach(d=>d.classList.toggle('selected',d.dataset.av===myAvatar));
+    document.querySelectorAll('.col-dot').forEach(d=>d.classList.toggle('selected',d.dataset.col===myColor));
+    setTimeout(()=>doJoin(),300);
+  }
 })();
 
 
@@ -1374,6 +1398,24 @@ document.getElementById('settingsBtn').onclick=()=>{
   document.getElementById('profileModal').classList.add('on');
 };
 document.getElementById('cancelProfile').onclick=()=>document.getElementById('profileModal').classList.remove('on');
+document.getElementById('logoutBtn').onclick=()=>{
+  if(!confirm('Wirklich ausloggen? Du kannst danach einen neuen Charakter erstellen.'))return;
+  // Voice verlassen
+  if(currentVoiceRoom)leaveVoice();
+  // Socket trennen
+  if(socket){socket.disconnect();socket=null;}
+  // Profil aus localStorage löschen
+  localStorage.removeItem('brotalk_profile');
+  // Reset
+  myName='';myRoom='Allgemein';myAvatar='😎';myColor='#5865f2';
+  // Modal schließen, Login zeigen
+  document.getElementById('profileModal').classList.remove('on');
+  document.getElementById('nameIn').value='';
+  document.getElementById('roomIn').value='';
+  document.querySelectorAll('.av-opt').forEach((d,i)=>d.classList.toggle('selected',i===0));
+  document.querySelectorAll('.col-dot').forEach((d,i)=>d.classList.toggle('selected',i===0));
+  document.getElementById('loginOverlay').style.display='flex';
+};
 document.getElementById('saveProfile').onclick=()=>{
   const name=document.getElementById('profNameIn').value.trim()||myName;
   const av=document.querySelector('.prof-av.selected')?.dataset.av||myAvatar;
@@ -2238,17 +2280,20 @@ function stopMicTest(){
   document.getElementById('micTestLabel').style.color='var(--muted)';
   document.getElementById('micTestBtn').textContent='▶ Test starten';
 }
+
 async function saveAudioSettings(){
-  stopMicTest();stopNgMonitor();
-  ngMonitorStream?.getTracks().forEach(t=>t.stop());ngMonitorStream=null;
-  selectedMicId=document.getElementById('micSelect').value||null;
-  selectedSpkId=document.getElementById('spkSelect').value||null;
-  nsMode=document.getElementById('nsMode').value;
-  masterVolume=parseInt(document.getElementById('masterVolSlider').value)/100;
-  micGain=parseInt(document.getElementById('micGainSlider').value)/100;
-  noiseGateEnabled=document.getElementById('noiseGateToggle').checked;
-  noiseGateThreshold=parseInt(document.getElementById('noiseGateSlider').value)/100;
-  voiceIsolationEnabled=document.getElementById('voiceIsolationToggle').checked;
+  stopMicTest(); stopNgMonitor();
+  ngMonitorStream?.getTracks().forEach(t=>t.stop());
+  ngMonitorStream=null;
+  selectedMicId         = document.getElementById('micSelect').value||null;
+  selectedSpkId         = document.getElementById('spkSelect').value||null;
+  nsMode                = document.getElementById('nsMode').value;
+  masterVolume          = parseInt(document.getElementById('masterVolSlider').value)/100;
+  micGain               = parseInt(document.getElementById('micGainSlider').value)/100;
+  noiseGateEnabled      = document.getElementById('noiseGateToggle').checked;
+  noiseGateThreshold    = parseInt(document.getElementById('noiseGateSlider').value)/100;
+  voiceIsolationEnabled = document.getElementById('voiceIsolationToggle').checked;
+  saveAudioSettings_ls();
   if(selectedSpkId){
     document.querySelectorAll('audio,video').forEach(el=>{if(el.setSinkId)el.setSinkId(selectedSpkId).catch(()=>{});});
     Object.values(peerConns).forEach(pc=>{if(pc._audioEl?.setSinkId)pc._audioEl.setSinkId(selectedSpkId).catch(()=>{});});
