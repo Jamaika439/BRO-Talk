@@ -4,6 +4,12 @@ const { Server } = require('socket.io');
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
+const rateLimit = require('express-rate-limit');  // ← hier oben
+
+ function sanitize(str, maxLen=100){
+  if(typeof str !== 'string') return '';
+  return str.trim().slice(0, maxLen).replace(/[<>]/g, '');
+}
 
 const PORT       = process.env.PORT || 3000;
 const dataDir    = path.join(__dirname, 'data');
@@ -11,7 +17,7 @@ const uploadsDir = path.join(dataDir, 'uploads');
 const dbFile     = path.join(dataDir, 'db.json');
 
 [dataDir, uploadsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
-
+ 
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
   catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {}, voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'] }; }
@@ -51,14 +57,28 @@ const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 const app    = express();
 const server = http.createServer(app);
-const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
+const io = new Server(server, { 
+  cors: { origin: '*' }, 
+  maxHttpBufferSize: 25e6,
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
-
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Zu viele Anfragen, bitte warte kurz.'
+});
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10
+});
+app.use(limiter);
 app.use('/uploads', express.static(uploadsDir));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.json());
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const host = process.env.APP_URL || `http://localhost:${PORT}`;
   res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
@@ -78,10 +98,13 @@ function broadcastRooms() { io.emit('roomList', db.rooms); }
 function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() }); }
 
 io.on('connection', socket => {
-  const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 4000);
+const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10000);
   socket.on('pong_check', t => socket.emit('ping_result', Date.now() - t));
 
   socket.on('join', ({ name, room = 'Allgemein', color = '#5865f2', avatar = '😎' }) => {
+    name = sanitize(name, 24);
+  room = sanitize(room, 32);
+  if(!name) return;
     users[socket.id] = { name, room, color, avatar, status: 'online', inVoice: false };
     if (!db.rooms.includes(room)) { db.rooms.push(room); saveDB(db); }
     socket.join(room);
@@ -112,6 +135,8 @@ io.on('connection', socket => {
   });
 
   socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
+    text = sanitize(text, 2000);
+  room = sanitize(room, 32);
     const u = users[socket.id]; if (!u) return;
     const msg = {
       id: Date.now(), user: u.name, userId: socket.id,

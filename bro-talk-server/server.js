@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
+const bcrypt = require('bcryptjs');
 
 // ── Ordner & JSON-DB Setup ───────────────
 const dataDir    = path.join(__dirname, 'data');
@@ -150,6 +151,14 @@ io.on('connection', socket => {
   socket.on('changeRoom', ({ newRoom }) => {
     const u = users[socket.id];
     if (!u) return;
+if (db.roomPasswords?.[newRoom]) {
+    if (!password || !bcrypt.compareSync(password, db.roomPasswords[newRoom])) {
+      socket.emit('roomPasswordWrong');
+      return;
+    }
+  }
+
+
     sysMsg(u.room, `${u.name} hat den Raum verlassen.`);
     socket.leave(u.room);
     u.room = newRoom;
@@ -160,12 +169,24 @@ io.on('connection', socket => {
     sysMsg(newRoom, `${u.name} ist beigetreten.`);
   });
 
-  socket.on('createRoom', ({ name }) => {
-    if (!name || db.rooms.includes(name)) return;
-    db.rooms.push(name);
-    saveDB(db);
-    broadcastRooms();
-  });
+socket.on('createRoom', ({ name, password }) => {
+  if (!name || db.rooms.includes(name)) return;
+  db.rooms.push(name);
+  if (password) {
+    if (!db.roomPasswords) db.roomPasswords = {};
+    db.roomPasswords[name] = bcrypt.hashSync(password, 10);
+  }
+  saveDB(db);
+  broadcastRooms();
+});
+
+socket.on('checkRoomPassword',({room})=>{
+  if(db.roomPasswords?.[room]){
+    socket.emit('roomNeedsPassword',{room});
+  } else {
+    socket.emit('roomNoPassword',{room});
+  }
+});
 
   socket.on('deleteRoom', ({ name }) => {
   if(!name || name === 'Allgemein') return;
@@ -261,30 +282,37 @@ socket.on('createVoiceChannel', ({ name }) => {
   });
 
   // ── PRIVATE CALL ────────────────────
-  socket.on('privateCall', ({ targetId }) => {
-    const caller = users[socket.id];
-    if (!caller) return;
-    io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
-  });
-  socket.on('privateCallAccept', ({ targetId }) => {
-    io.to(targetId).emit('privateCallAccepted', { fromId: socket.id });
-  });
+socket.on('privateCallAccept', ({ targetId }) => {
+  const caller = users[targetId];
+  const receiver = users[socket.id];
+  if(!caller || !receiver) return;
+  
+  // Privaten Raum erstellen
+  const privateRoom = `__private__${[caller.name, receiver.name].sort().join('__')}`;
+  
+  io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
+  socket.emit('privateCallAccepted', { fromId: targetId, privateRoom });
+});
   socket.on('privateCallReject', ({ targetId }) => {
     io.to(targetId).emit('privateCallRejected', { fromId: socket.id });
   });
 
-  // ── DISCONNECT ──────────────────────
-  socket.on('disconnect', () => {
+  //Disconect
+socket.on('disconnect', () => {
     clearInterval(pingInterval);
     const u = users[socket.id];
     if (u) {
-      sysMsg(u.room, `${u.name} hat die App verlassen.`);
-      Object.values(voiceRooms).forEach(s => s.delete(socket.id));
-      io.emit('voicePeerLeft', { peerId: socket.id });
-      delete users[socket.id];
-      broadcastUsers();
+      setTimeout(() => {
+        if (!users[socket.id]) return;
+        sysMsg(u.room, `${u.name} hat die App verlassen.`);
+        Object.values(voiceRooms).forEach(s => s.delete(socket.id));
+        io.emit('voicePeerLeft', { peerId: socket.id });
+        delete users[socket.id];
+        broadcastUsers();
+      }, 5000);
     }
   });
-});
 
-server.listen(3000, () => console.log('✅ Server läuft auf Port 3000'));
+}); // ← io.on('connection') schließen
+
+server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));

@@ -246,6 +246,15 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .sp-screen-tile img{width:100%;border-radius:3px;aspect-ratio:16/9;object-fit:cover;background:#000;margin-bottom:3px;display:block}
 .sp-screen-tile span{font-size:.68rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://cdn.socket.io;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com;
+  img-src 'self' data: blob: https:;
+  media-src 'self' blob: https:;
+  connect-src 'self' wss: https:;
+">
 </head>
 <body>
 
@@ -266,10 +275,21 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 <div class="modal-bg" id="newRoomModal">
   <div class="mbox"><h3>Neuen Raum erstellen</h3>
     <input id="newRoomIn" type="text" placeholder="Raum-Name" maxlength="32"/>
+    <input id="newRoomPwIn" type="password" placeholder="🔒 Passwort (optional)" maxlength="32"/>
     <div class="mrow"><button class="btn-sec" id="cancelRoom">Abbrechen</button><button class="btn-acc" id="createRoom">Erstellen</button></div>
   </div>
 </div>
 
+<div class="modal-bg" id="roomPwModal">
+  <div class="mbox"><h3>🔒 Passwort eingeben</h3>
+    <p id="roomPwLabel" style="color:var(--muted);font-size:.88rem;margin-bottom:12px"></p>
+    <input id="roomPwIn" type="password" placeholder="Passwort" maxlength="32"/>
+    <div class="mrow">
+      <button class="btn-sec" id="cancelRoomPw">Abbrechen</button>
+      <button class="btn-acc" id="confirmRoomPw">Beitreten</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-bg" id="newVoiceModal">
   <div class="mbox"><h3>Neuen Sprachkanal erstellen</h3>
@@ -809,6 +829,18 @@ function playUISound(name){
   buildAppearModal();
   renderVoiceList();
   initDmDrag();
+  setInterval(()=>{
+  Object.entries(peerConns).forEach(([pid,pc])=>{
+    if(pc.connectionState==='connected'){
+      if(!pc._dc){
+        try{pc._dc=pc.createDataChannel('keepalive');}catch{}
+      }
+      if(pc._dc?.readyState==='open'){
+        try{pc._dc.send('ping');}catch{}
+      }
+    }
+  });
+},30000);
   initFlyingDrag();
   initClipboard();
   initStreamPicker();
@@ -819,6 +851,8 @@ function playUISound(name){
   const sp=getSavedProfile();
   if(sp.name)document.getElementById('nameIn').value=sp.name;
 })();
+
+
 function mk(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
 function updateNsCheckBtn(){document.getElementById('nsCheckBtn').textContent=nsEnabled?'✅':'❌';}
 
@@ -998,6 +1032,29 @@ document.getElementById('joinBtn').onclick=doJoin;
 document.getElementById('nameIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('roomIn').focus();};
 document.getElementById('roomIn').onkeydown=e=>{if(e.key==='Enter')doJoin();};
 
+let pendingRoom=null;
+
+function switchRoom(r){
+  if(r===myRoom)return;
+  pendingRoom=r;
+  socket.emit('checkRoomPassword',{room:r});
+}
+
+document.getElementById('cancelRoomPw').onclick=()=>{
+  document.getElementById('roomPwModal').classList.remove('on');
+  pendingRoom=null;
+};
+document.getElementById('confirmRoomPw').onclick=()=>{
+  const pw=document.getElementById('roomPwIn').value.trim();
+  if(!pw||!pendingRoom)return;
+  socket.emit('changeRoom',{newRoom:pendingRoom,password:pw});
+  myRoom=pendingRoom;
+  document.getElementById('roomPwModal').classList.remove('on');
+};
+document.getElementById('roomPwIn').onkeydown=e=>{
+  if(e.key==='Enter')document.getElementById('confirmRoomPw').click();
+};
+
 function doJoin(){
   const name=document.getElementById('nameIn').value.trim();
   const room=document.getElementById('roomIn').value.trim()||'Allgemein';
@@ -1006,7 +1063,22 @@ function doJoin(){
   myAvatar=document.querySelector('.av-opt.selected')?.dataset.av||myAvatar;
   myColor=document.querySelector('.col-dot.selected')?.dataset.col||myColor;
   saveProfile();
-  socket=io(serverUrl,{transports:['websocket','polling'],secure:true,rejectUnauthorized:false});
+  socket=io(serverUrl,{
+    transports:['websocket','polling'],
+    secure:true,
+    rejectUnauthorized:false,
+    reconnection:true,
+    reconnectionAttempts:10,
+    reconnectionDelay:2000,
+    reconnectionDelayMax:10000,
+    timeout:20000
+  });
+
+  socket.on('reconnect',()=>{
+    socket.emit('join',{name:myName,room:myRoom,color:myColor,avatar:myAvatar});
+    if(currentVoiceRoom)socket.emit('joinVoice',{room:currentVoiceRoom});
+  });
+
   socket.on('connect',()=>{myId=socket.id;socket.emit('join',{name,room,color:myColor,avatar:myAvatar});});
   socket.on('joined',({name:n,room:r})=>{myRoom=r;updateSelfBar();document.getElementById('chName').textContent=r;document.getElementById('loginOverlay').style.display='none';document.getElementById('msgInput').focus();});
   socket.on('history',msgs=>{document.getElementById('chatArea').innerHTML='';msgs.forEach(m=>renderMsg(m));scrollChat();});
@@ -1049,7 +1121,10 @@ function doJoin(){
   socket.on('privateMessage',onDmMsg);
   socket.on('dmHistory',onDmHistory);
   socket.on('privateCallIncoming',onCallIncoming);
-  socket.on('privateCallAccepted',()=>sysLocal('✅ Anruf angenommen'));
+  socket.on('privateCallAccepted',({fromId,privateRoom})=>{
+    sysLocal('✅ Anruf angenommen');
+    if(privateRoom)joinVoice(privateRoom);
+  });
   socket.on('privateCallRejected',()=>sysLocal('❌ Anruf abgelehnt'));
   socket.on('playSound',({soundData,soundName,fromName})=>{
     stopCurrentSound();
@@ -1060,12 +1135,27 @@ function doJoin(){
   socket.on('voiceChannelList',list=>{VOICE_CHANNELS=list;renderVoiceList();});
   socket.on('messageDeleted',({msgId})=>document.querySelector(`.msg-row[data-id="${msgId}"]`)?.remove());
   socket.on('chatCleared',()=>{document.getElementById('chatArea').innerHTML='';sysLocal('🗑 Chat wurde geleert.');});
+  socket.on('roomPasswordWrong',()=>{
+    document.getElementById('roomPwIn').value='';
+    document.getElementById('roomPwIn').style.outline='2px solid var(--red)';
+    setTimeout(()=>document.getElementById('roomPwIn').style.outline='',1000);
+  });
+  socket.on('roomNeedsPassword',({room})=>{
+    document.getElementById('roomPwLabel').textContent='Passwort für #'+room;
+    document.getElementById('roomPwIn').value='';
+    document.getElementById('roomPwModal').classList.add('on');
+    setTimeout(()=>document.getElementById('roomPwIn').focus(),100);
+  });
+  socket.on('roomNoPassword',({room})=>{
+    socket.emit('changeRoom',{newRoom:room});
+    myRoom=room;
+  });
 }
+
 function updateSelfBar(){
   const av=document.getElementById('selfAv');av.textContent=myAvatar;av.style.background=myColor+'66';
   document.getElementById('selfName').textContent=myName;
 }
-
 // ── ROOMS ──
 function renderRoomList(rooms){
   const el=document.getElementById('roomList');el.innerHTML='';
@@ -1108,7 +1198,15 @@ function renderVoiceList(){
 function switchRoom(r){if(r===myRoom)return;socket.emit('changeRoom',{newRoom:r});myRoom=r;}
 document.getElementById('addRoomBtn').onclick=()=>document.getElementById('newRoomModal').classList.add('on');
 document.getElementById('cancelRoom').onclick=()=>document.getElementById('newRoomModal').classList.remove('on');
-document.getElementById('createRoom').onclick=()=>{const v=document.getElementById('newRoomIn').value.trim();if(!v)return;socket.emit('createRoom',{name:v});document.getElementById('newRoomIn').value='';document.getElementById('newRoomModal').classList.remove('on');};
+document.getElementById('createRoom').onclick=()=>{
+  const v=document.getElementById('newRoomIn').value.trim();
+  const pw=document.getElementById('newRoomPwIn').value.trim();
+  if(!v)return;
+  socket.emit('createRoom',{name:v,password:pw||null});
+  document.getElementById('newRoomIn').value='';
+  document.getElementById('newRoomPwIn').value='';
+  document.getElementById('newRoomModal').classList.remove('on');
+};
 document.getElementById('newRoomIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('createRoom').click();};
 document.getElementById('addVoiceBtn').onclick=()=>document.getElementById('newVoiceModal').classList.add('on');
 document.getElementById('cancelVoice').onclick=()=>document.getElementById('newVoiceModal').classList.remove('on');
@@ -1594,14 +1692,23 @@ async function confirmStreamPicker(){
   const confirmBtn=document.getElementById('spConfirm');
   confirmBtn.disabled=true;confirmBtn.textContent='⏳ Starte…';
 
+  const getDisplayWithFallback=async(videoOpts)=>{
+    try{
+      return await navigator.mediaDevices.getDisplayMedia({video:videoOpts,audio:true});
+    }catch(e){
+      console.warn('[Stream] Audio failed, retrying without...');
+      try{
+        return await navigator.mediaDevices.getDisplayMedia({video:videoOpts,audio:false});
+      }catch(e2){throw e2;}
+    }
+  };
+
   try{
     if(spMode==='cam'){
-      
-      stream=await navigator.mediaDevices.getDisplayMedia({
-  video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
-  audio:true
-});
-
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:1280},height:{ideal:720}},
+        audio:false
+      });
     }else if(isElectron()){
       const srcId=spPickerStream?._srcId;
       if(spPickerStream&&!spPickerStream._noStream)spPickerStream.getTracks().forEach(t=>t.stop());
@@ -1616,12 +1723,7 @@ async function confirmStreamPicker(){
       await window.electronAPI.selectSource(srcId);
       console.log('[Stream] Calling getDisplayMedia...');
       try{
-        
-        stream=await navigator.mediaDevices.getDisplayMedia({
-  video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
-  audio:true
-});
-
+        stream=await getDisplayWithFallback({frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}});
         console.log('[Stream] getDisplayMedia success!');
       }catch(e){
         console.error('[Stream] getDisplayMedia failed:',e);
@@ -1640,15 +1742,9 @@ async function confirmStreamPicker(){
       }
     }else{
       if(spMode==='screen'){
-        stream=await navigator.mediaDevices.getDisplayMedia({
-  video:{frameRate:{ideal:30,max:60},width:{ideal:1920},height:{ideal:1080}},
-  audio:true
-});
+        stream=await getDisplayWithFallback({frameRate:{ideal:30},cursor:'motion'});
       }else{
-        const screenStream=await navigator.mediaDevices.getDisplayMedia({
-          video:{frameRate:{ideal:30},cursor:'motion'},
-          audio:true
-        });
+        const screenStream=await getDisplayWithFallback({frameRate:{ideal:30},cursor:'motion'});
         const camS=await navigator.mediaDevices.getUserMedia({
           video:{deviceId:camId?{exact:camId}:undefined,width:{ideal:320},height:{ideal:180}},
           audio:false
@@ -2001,7 +2097,11 @@ document.getElementById('dmSendBtn').onclick=sendDM;
 document.getElementById('dmInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendDM();}};
 document.getElementById('dmInput').oninput=function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px';};
 function sendDM(){const text=document.getElementById('dmInput').value.trim();if(!text||!dmTarget||!socket)return;socket.emit('privateMessage',{targetId:dmTarget.id,text});document.getElementById('dmInput').value='';document.getElementById('dmInput').style.height='auto';}
-document.getElementById('dmCallBtn').onclick=()=>{if(!dmTarget||!socket)return;socket.emit('privateCall',{targetId:dmTarget.id});joinVoice('Lounge');};
+document.getElementByIdocument.getElementById('dmCallBtn').onclick=()=>{
+  if(!dmTarget||!socket)return;
+  socket.emit('privateCall',{targetId:dmTarget.id});
+  // Nicht mehr direkt Lounge joinen – warten bis Anruf angenommen wird!
+};
 function onDmMsg(msg){
   const otherId=msg.toSelf?msg.targetId:msg.fromId;
   if(dmTarget&&(dmTarget.id===otherId||(msg.toSelf&&dmTarget.id===msg.targetId))){appendDM(msg);}
@@ -2014,7 +2114,12 @@ function onCallIncoming({fromId,fromName}){
   document.getElementById('callToast').classList.add('on');
   setTimeout(()=>{document.getElementById('callToast').classList.remove('on');pendingCallFrom=null;},20000);
 }
-document.getElementById('toastAcc').onclick=()=>{document.getElementById('callToast').classList.remove('on');if(!pendingCallFrom)return;socket.emit('privateCallAccept',{targetId:pendingCallFrom});joinVoice('Lounge');pendingCallFrom=null;};
+document.getElementById('toastAcc').onclick=()=>{
+  document.getElementById('callToast').classList.remove('on');
+  if(!pendingCallFrom)return;
+  socket.emit('privateCallAccept',{targetId:pendingCallFrom});
+  pendingCallFrom=null;
+};
 document.getElementById('toastRej').onclick=()=>{document.getElementById('callToast').classList.remove('on');if(!pendingCallFrom)return;socket.emit('privateCallReject',{targetId:pendingCallFrom});pendingCallFrom=null;};
 
 // ── AUDIO SETTINGS MODAL ──
