@@ -4,9 +4,9 @@ const { Server } = require('socket.io');
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
-const rateLimit = require('express-rate-limit');  // ← hier oben
+const rateLimit = require('express-rate-limit');
 
- function sanitize(str, maxLen=100){
+function sanitize(str, maxLen=100){
   if(typeof str !== 'string') return '';
   return str.trim().slice(0, maxLen).replace(/[<>]/g, '');
 }
@@ -17,18 +17,20 @@ const uploadsDir = path.join(dataDir, 'uploads');
 const dbFile     = path.join(dataDir, 'db.json');
 
 [dataDir, uploadsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
- 
+
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
-  catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {}, voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'] }; }
+  catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], roomPasswords: {}, profiles: {}, dms: {}, voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'], voicePasswords: {} }; }
 }
 function saveDB(db) {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
 let db = loadDB();
-if (!db.dms) { db.dms = {}; saveDB(db); }
-if (!db.voiceChannels) { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
+if (!db.dms)            { db.dms = {};            saveDB(db); }
+if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
+if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
+if (!db.voicePasswords) { db.voicePasswords = {}; saveDB(db); }
 
 function addMessage(room, msg) {
   if (!db.messages[room]) db.messages[room] = [];
@@ -57,22 +59,15 @@ const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 const app    = express();
 const server = http.createServer(app);
-const io = new Server(server, { 
-  cors: { origin: '*' }, 
+const io = new Server(server, {
+  cors: { origin: '*' },
   maxHttpBufferSize: 25e6,
   pingTimeout: 60000,
   pingInterval: 25000
 });
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Zu viele Anfragen, bitte warte kurz.'
-});
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10
-});
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: 'Zu viele Anfragen, bitte warte kurz.' });
+const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
 app.use(limiter);
 app.use('/uploads', express.static(uploadsDir));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
@@ -98,13 +93,13 @@ function broadcastRooms() { io.emit('roomList', db.rooms); }
 function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() }); }
 
 io.on('connection', socket => {
-const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10000);
+  const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10000);
   socket.on('pong_check', t => socket.emit('ping_result', Date.now() - t));
 
   socket.on('join', ({ name, room = 'Allgemein', color = '#5865f2', avatar = '😎' }) => {
     name = sanitize(name, 24);
-  room = sanitize(room, 32);
-  if(!name) return;
+    room = sanitize(room, 32);
+    if (!name) return;
     users[socket.id] = { name, room, color, avatar, status: 'online', inVoice: false };
     if (!db.rooms.includes(room)) { db.rooms.push(room); saveDB(db); }
     socket.join(room);
@@ -123,53 +118,31 @@ const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10
     socket.emit('profileUpdated', { name: u.name, color: u.color, avatar: u.avatar });
   });
 
-  socket.on('deleteVoiceChannel',({name})=>{
-  if(!name||['Lounge','Gaming VC','Musik VC'].includes(name))return;
-  db.voiceChannels=db.voiceChannels.filter(v=>v!==name);
-  saveDB(db);
-  io.emit('voiceChannelList',db.voiceChannels);
-});
-
   socket.on('setStatus', status => {
     if (users[socket.id]) { users[socket.id].status = status; broadcastUsers(); }
   });
 
-  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
-    text = sanitize(text, 2000);
-  room = sanitize(room, 32);
-    const u = users[socket.id]; if (!u) return;
-    const msg = {
-      id: Date.now(), user: u.name, userId: socket.id,
-      color: u.color, avatar: u.avatar,
-      type, content: type === 'file' || type === 'image' ? fileUrl : text,
-      fileName: fileName || null, timestamp: ts()
-    };
-    addMessage(room, msg);
-    io.to(room).emit('message', msg);
-  });
-
-  // Nachricht löschen
-  socket.on('deleteMessage', ({ room, msgId }) => {
-    const u = users[socket.id]; if (!u) return;
-    if (db.messages[room]) {
-      const msg = db.messages[room].find(m => m.id === msgId);
-      if (msg && (msg.userId === socket.id || msg.user === u.name)) {
-        db.messages[room] = db.messages[room].filter(m => m.id !== msgId);
-        saveDB(db);
-        io.to(room).emit('messageDeleted', { msgId });
-      }
+  // ── ROOM PASSWORD CHECK ──
+  socket.on('checkRoomPassword', ({ room }) => {
+    room = sanitize(room, 32);
+    if (db.roomPasswords[room]) {
+      socket.emit('roomNeedsPassword', { room });
+    } else {
+      socket.emit('roomNoPassword', { room });
     }
   });
 
-  // Chat leeren
-  socket.on('clearChat', ({ room }) => {
-    db.messages[room] = [];
-    saveDB(db);
-    io.to(room).emit('chatCleared', { room });
-  });
-
-  socket.on('changeRoom', ({ newRoom }) => {
+  // ── CHANGE ROOM (with optional password) ──
+  socket.on('changeRoom', ({ newRoom, password }) => {
     const u = users[socket.id]; if (!u) return;
+    newRoom = sanitize(newRoom, 32);
+    // Passwort prüfen falls gesetzt
+    if (db.roomPasswords[newRoom]) {
+      if (!password || db.roomPasswords[newRoom] !== password) {
+        socket.emit('roomPasswordWrong');
+        return;
+      }
+    }
     sysMsg(u.room, `${u.name} hat den Raum verlassen.`);
     socket.leave(u.room);
     u.room = newRoom;
@@ -180,23 +153,60 @@ const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10
     sysMsg(newRoom, `${u.name} ist beigetreten.`);
   });
 
-  socket.on('createRoom', ({ name }) => {
+  socket.on('createRoom', ({ name, password }) => {
+    name = sanitize(name, 32);
     if (!name || db.rooms.includes(name)) return;
-    db.rooms.push(name); saveDB(db); broadcastRooms();
+    db.rooms.push(name);
+    if (password) db.roomPasswords[name] = sanitize(password, 32);
+    saveDB(db);
+    broadcastRooms();
   });
 
   socket.on('deleteRoom', ({ name }) => {
     if (!name || name === 'Allgemein') return;
     db.rooms = db.rooms.filter(r => r !== name);
     delete db.messages[name];
+    delete db.roomPasswords[name];
     saveDB(db);
     broadcastRooms();
     io.emit('roomDeleted', { name });
   });
 
-  socket.on('createVoiceChannel', ({ name }) => {
+  // ── VOICE CHANNEL PASSWORD CHECK ──
+  socket.on('checkVoicePassword', ({ room }) => {
+    room = sanitize(room, 32);
+    if (db.voicePasswords[room]) {
+      socket.emit('voiceNeedsPassword', { room });
+    } else {
+      socket.emit('voiceNoPassword', { room });
+    }
+  });
+
+  // ── JOIN VOICE WITH PASSWORD ──
+  socket.on('joinVoiceWithPassword', ({ room, password }) => {
+    room = sanitize(room, 32);
+    password = sanitize(password, 32);
+    if (db.voicePasswords[room] && db.voicePasswords[room] !== password) {
+      socket.emit('voicePasswordWrong');
+      return;
+    }
+    socket.emit('voicePasswordOk', { room });
+  });
+
+  socket.on('createVoiceChannel', ({ name, password }) => {
+    name = sanitize(name, 32);
     if (!name || db.voiceChannels.includes(name)) return;
-    db.voiceChannels.push(name); saveDB(db);
+    db.voiceChannels.push(name);
+    if (password) db.voicePasswords[name] = sanitize(password, 32);
+    saveDB(db);
+    io.emit('voiceChannelList', db.voiceChannels);
+  });
+
+  socket.on('deleteVoiceChannel', ({ name }) => {
+    if (!name || ['Lounge', 'Gaming VC', 'Musik VC'].includes(name)) return;
+    db.voiceChannels = db.voiceChannels.filter(v => v !== name);
+    delete db.voicePasswords[name];
+    saveDB(db);
     io.emit('voiceChannelList', db.voiceChannels);
   });
 
@@ -222,6 +232,38 @@ const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10
     if (users[socket.id]) users[socket.id].inVoice = false;
     io.emit('voicePeerLeft', { peerId: socket.id });
     broadcastUsers();
+  });
+
+  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
+    text = sanitize(text, 2000);
+    room = sanitize(room, 32);
+    const u = users[socket.id]; if (!u) return;
+    const msg = {
+      id: Date.now(), user: u.name, userId: socket.id,
+      color: u.color, avatar: u.avatar,
+      type, content: type === 'file' || type === 'image' ? fileUrl : text,
+      fileName: fileName || null, timestamp: ts()
+    };
+    addMessage(room, msg);
+    io.to(room).emit('message', msg);
+  });
+
+  socket.on('deleteMessage', ({ room, msgId }) => {
+    const u = users[socket.id]; if (!u) return;
+    if (db.messages[room]) {
+      const msg = db.messages[room].find(m => m.id === msgId);
+      if (msg && (msg.userId === socket.id || msg.user === u.name)) {
+        db.messages[room] = db.messages[room].filter(m => m.id !== msgId);
+        saveDB(db);
+        io.to(room).emit('messageDeleted', { msgId });
+      }
+    }
+  });
+
+  socket.on('clearChat', ({ room }) => {
+    db.messages[room] = [];
+    saveDB(db);
+    io.to(room).emit('chatCleared', { room });
   });
 
   socket.on('rtc-offer',  ({ targetId, offer })     => io.to(targetId).emit('rtc-offer',  { fromId: socket.id, fromName: users[socket.id]?.name, offer }));
@@ -275,5 +317,7 @@ const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10
     }
   });
 });
+
+
 
 server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));

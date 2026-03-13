@@ -291,9 +291,11 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
   </div>
 </div>
 
+
 <div class="modal-bg" id="newVoiceModal">
   <div class="mbox"><h3>Neuen Sprachkanal erstellen</h3>
     <input id="newVoiceIn" type="text" placeholder="Kanal-Name" maxlength="32"/>
+    <input id="newVoicePwIn" type="password" placeholder="🔒 Passwort (optional)" maxlength="32"/>
     <div class="mrow">
       <button class="btn-sec" id="cancelVoice">Abbrechen</button>
       <button class="btn-acc" id="createVoice">Erstellen</button>
@@ -312,16 +314,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
   </div>
 </div>
 
-<div class="modal-bg" id="newVoiceModal">
-  <div class="mbox"><h3>Neuen Sprachkanal erstellen</h3>
-    <input id="newVoiceIn" type="text" placeholder="Kanal-Name" maxlength="32"/>
-    <input id="newVoicePwIn" type="password" placeholder="🔒 Passwort (optional)" maxlength="32"/>
-    <div class="mrow">
-      <button class="btn-sec" id="cancelVoice">Abbrechen</button>
-      <button class="btn-acc" id="createVoice">Erstellen</button>
-    </div>
-  </div>
-</div>
+
 
 <div class="modal-bg" id="profileModal">
   <div class="mbox" style="width:420px">
@@ -1246,7 +1239,11 @@ function renderVoiceList(){
   });
 }
 
-function switchRoom(r){if(r===myRoom)return;socket.emit('changeRoom',{newRoom:r});myRoom=r;}
+function switchRoom(r) {
+  if (r === myRoom) return;
+  pendingRoom = r;
+  socket.emit('checkRoomPassword', { room: r });
+}
 document.getElementById('addRoomBtn').onclick=()=>document.getElementById('newRoomModal').classList.add('on');
 document.getElementById('cancelRoom').onclick=()=>document.getElementById('newRoomModal').classList.remove('on');
 document.getElementById('createRoom').onclick=()=>{
@@ -1261,13 +1258,13 @@ document.getElementById('createRoom').onclick=()=>{
 document.getElementById('newRoomIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('createRoom').click();};
 document.getElementById('addVoiceBtn').onclick=()=>document.getElementById('newVoiceModal').classList.add('on');
 document.getElementById('cancelVoice').onclick=()=>document.getElementById('newVoiceModal').classList.remove('on');
-document.getElementById('createVoice').onclick=()=>{
-  const v=document.getElementById('newVoiceIn').value.trim();
-  const pw=document.getElementById('newVoicePwIn').value.trim();
-  if(!v)return;
-  socket.emit('createVoiceChannel',{name:v,password:pw||null});
-  document.getElementById('newVoiceIn').value='';
-  document.getElementById('newVoicePwIn').value='';
+document.getElementById('createVoice').onclick = () => {
+  const v = document.getElementById('newVoiceIn').value.trim();
+  const pw = document.getElementById('newVoicePwIn').value.trim();
+  if (!v) return;
+  socket.emit('createVoiceChannel', { name: v, password: pw || null });
+  document.getElementById('newVoiceIn').value = '';
+  document.getElementById('newVoicePwIn').value = '';
   document.getElementById('newVoiceModal').classList.remove('on');
 };
 
@@ -1499,10 +1496,10 @@ async function restartVoiceStreamFull(){
 }
 
 // ── VOICE / WEBRTC ──
-function joinVoice(roomName){
-  if(currentVoiceRoom===roomName){leaveVoice();return;}
-  pendingVoiceRoom=roomName;
-  socket.emit('checkVoicePassword',{room:roomName});
+function joinVoice(roomName) {
+  if (currentVoiceRoom === roomName) { leaveVoice(); return; }
+  pendingVoiceRoom = roomName;
+  socket.emit('checkVoicePassword', { room: roomName });
 }
 
 async function startJoinVoice(roomName){
