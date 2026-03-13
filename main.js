@@ -35,7 +35,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false,
+    
       backgroundThrottling: false,
       autoplayPolicy: 'no-user-gesture-required',
     },

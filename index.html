@@ -251,9 +251,9 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
   script-src 'self' 'unsafe-inline' https://cdn.socket.io;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src https://fonts.gstatic.com;
-  img-src 'self' data: blob: https:;
-  media-src 'self' blob: https:;
-  connect-src 'self' wss: https:;
+  img-src 'self' data: blob: https: http:;
+  media-src 'self' blob: https: http:;
+  connect-src 'self' wss: ws: https: http:;
 ">
 </head>
 <body>
@@ -301,6 +301,27 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
   </div>
 </div>
 
+<div class="modal-bg" id="voicePwModal">
+  <div class="mbox"><h3>🔒 Sprachkanal Passwort</h3>
+    <p id="voicePwLabel" style="color:var(--muted);font-size:.88rem;margin-bottom:12px"></p>
+    <input id="voicePwIn" type="password" placeholder="Passwort" maxlength="32"/>
+    <div class="mrow">
+      <button class="btn-sec" id="cancelVoicePw">Abbrechen</button>
+      <button class="btn-acc" id="confirmVoicePw">Beitreten</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="newVoiceModal">
+  <div class="mbox"><h3>Neuen Sprachkanal erstellen</h3>
+    <input id="newVoiceIn" type="text" placeholder="Kanal-Name" maxlength="32"/>
+    <input id="newVoicePwIn" type="password" placeholder="🔒 Passwort (optional)" maxlength="32"/>
+    <div class="mrow">
+      <button class="btn-sec" id="cancelVoice">Abbrechen</button>
+      <button class="btn-acc" id="createVoice">Erstellen</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-bg" id="profileModal">
   <div class="mbox" style="width:420px">
@@ -1044,6 +1065,20 @@ document.getElementById('cancelRoomPw').onclick=()=>{
   document.getElementById('roomPwModal').classList.remove('on');
   pendingRoom=null;
 };
+document.getElementById('cancelVoicePw').onclick=()=>{
+  document.getElementById('voicePwModal').classList.remove('on');
+  pendingVoiceRoom=null;
+};
+document.getElementById('confirmVoicePw').onclick=()=>{
+  const pw=document.getElementById('voicePwIn').value.trim();
+  if(!pw||!pendingVoiceRoom)return;
+  socket.emit('joinVoiceWithPassword',{room:pendingVoiceRoom,password:pw});
+  document.getElementById('voicePwModal').classList.remove('on');
+};
+document.getElementById('voicePwIn').onkeydown=e=>{
+  if(e.key==='Enter')document.getElementById('confirmVoicePw').click();
+};
+
 document.getElementById('confirmRoomPw').onclick=()=>{
   const pw=document.getElementById('roomPwIn').value.trim();
   if(!pw||!pendingRoom)return;
@@ -1150,6 +1185,20 @@ function doJoin(){
     socket.emit('changeRoom',{newRoom:room});
     myRoom=room;
   });
+
+  socket.on('voiceNeedsPassword',({room})=>{
+  document.getElementById('voicePwLabel').textContent='Passwort für 🔈'+room;
+  document.getElementById('voicePwIn').value='';
+  document.getElementById('voicePwModal').classList.add('on');
+  setTimeout(()=>document.getElementById('voicePwIn').focus(),100);
+});
+socket.on('voiceNoPassword',({room})=>startJoinVoice(room));
+socket.on('voicePasswordOk',({room})=>startJoinVoice(room));
+socket.on('voicePasswordWrong',()=>{
+  document.getElementById('voicePwIn').value='';
+  document.getElementById('voicePwIn').style.outline='2px solid var(--red)';
+  setTimeout(()=>document.getElementById('voicePwIn').style.outline='',1000);
+});
 }
 
 function updateSelfBar(){
@@ -1212,13 +1261,13 @@ document.getElementById('addVoiceBtn').onclick=()=>document.getElementById('newV
 document.getElementById('cancelVoice').onclick=()=>document.getElementById('newVoiceModal').classList.remove('on');
 document.getElementById('createVoice').onclick=()=>{
   const v=document.getElementById('newVoiceIn').value.trim();
+  const pw=document.getElementById('newVoicePwIn').value.trim();
   if(!v)return;
-  socket.emit('createVoiceChannel',{name:v});
+  socket.emit('createVoiceChannel',{name:v,password:pw||null});
   document.getElementById('newVoiceIn').value='';
+  document.getElementById('newVoicePwIn').value='';
   document.getElementById('newVoiceModal').classList.remove('on');
 };
-document.getElementById('newVoiceIn').onkeydown=e=>{if(e.key==='Enter')document.getElementById('createVoice').click();};
-
 
 // ── MESSAGES ──
 function renderMsg(m,scroll=false){
@@ -1448,8 +1497,13 @@ async function restartVoiceStreamFull(){
 }
 
 // ── VOICE / WEBRTC ──
-async function joinVoice(roomName){
+function joinVoice(roomName){
   if(currentVoiceRoom===roomName){leaveVoice();return;}
+  pendingVoiceRoom=roomName;
+  socket.emit('checkVoicePassword',{room:roomName});
+}
+
+async function startJoinVoice(roomName){
   if(currentVoiceRoom)leaveVoice();
   const useNS=nsEnabled&&nsMode!=='off';
   try{
@@ -1462,6 +1516,7 @@ async function joinVoice(roomName){
   document.getElementById('callBar').classList.add('on');
   renderVoiceList();
 }
+
 function leaveVoice(){
   if(!currentVoiceRoom)return;
   socket.emit('leaveVoice',{room:currentVoiceRoom});
@@ -2092,21 +2147,22 @@ function appendDM(msg,scroll=true){
   d.innerHTML=(!out?`<div class="dm-who">${esc(msg.fromName)}</div>`:'')+`<div>${esc(msg.text)}</div><div class="dm-t">${msg.timestamp||''}</div>`;
   el.appendChild(d);if(scroll)el.scrollTop=el.scrollHeight;
 }
+
 document.getElementById('dmCloseBtn').onclick=()=>{document.getElementById('dmWindow').classList.remove('on');dmTarget=null;};
 document.getElementById('dmSendBtn').onclick=sendDM;
 document.getElementById('dmInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendDM();}};
 document.getElementById('dmInput').oninput=function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px';};
 function sendDM(){const text=document.getElementById('dmInput').value.trim();if(!text||!dmTarget||!socket)return;socket.emit('privateMessage',{targetId:dmTarget.id,text});document.getElementById('dmInput').value='';document.getElementById('dmInput').style.height='auto';}
-document.getElementByIdocument.getElementById('dmCallBtn').onclick=()=>{
+document.getElementById('dmCallBtn').onclick=()=>{
   if(!dmTarget||!socket)return;
   socket.emit('privateCall',{targetId:dmTarget.id});
-  // Nicht mehr direkt Lounge joinen – warten bis Anruf angenommen wird!
 };
 function onDmMsg(msg){
   const otherId=msg.toSelf?msg.targetId:msg.fromId;
   if(dmTarget&&(dmTarget.id===otherId||(msg.toSelf&&dmTarget.id===msg.targetId))){appendDM(msg);}
   else if(!msg.toSelf){dmUnread[otherId]=(dmUnread[otherId]||0)+1;renderUserList(lastUserList);playUISound('dm');}
 }
+
 function startPrivateCall(user){socket.emit('privateCall',{targetId:user.id});joinVoice('Lounge');}
 function onCallIncoming({fromId,fromName}){
   pendingCallFrom=fromId;

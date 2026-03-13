@@ -197,13 +197,36 @@ socket.on('checkRoomPassword',({room})=>{
   io.emit('roomDeleted', { name });
 });
 
-socket.on('createVoiceChannel', ({ name }) => {
-  if(!name || db.voiceChannels?.includes(name)) return;
-  if(!db.voiceChannels) db.voiceChannels = ['Lounge','Gaming VC','Musik VC'];
+socket.on('createVoiceChannel',({name, password})=>{
+  if(!name||db.voiceChannels?.includes(name))return;
+  if(!db.voiceChannels)db.voiceChannels=['Lounge','Gaming VC','Musik VC'];
   db.voiceChannels.push(name);
+  if(password){
+    if(!db.voicePasswords)db.voicePasswords={};
+    db.voicePasswords[name]=bcrypt.hashSync(password,10);
+  }
   saveDB(db);
-  io.emit('voiceChannelList', db.voiceChannels);
+  io.emit('voiceChannelList',db.voiceChannels);
 });
+
+socket.on('checkVoicePassword',({room})=>{
+  if(db.voicePasswords?.[room]){
+    socket.emit('voiceNeedsPassword',{room});
+  }else{
+    socket.emit('voiceNoPassword',{room});
+  }
+});
+
+socket.on('joinVoiceWithPassword',({room,password})=>{
+  if(db.voicePasswords?.[room]){
+    if(!password||!bcrypt.compareSync(password,db.voicePasswords[room])){
+      socket.emit('voicePasswordWrong');
+      return;
+    }
+  }
+  socket.emit('voicePasswordOk',{room});
+});
+
   // ── VOICE ───────────────────────────
   socket.on('joinVoice', ({ room }) => {
     Object.entries(voiceRooms).forEach(([r, members]) => {
