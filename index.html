@@ -319,7 +319,18 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 <div class="modal-bg" id="profileModal">
   <div class="mbox" style="width:420px">
     <h3>⚙️ Einstellungen</h3>
-    <div class="prof-lbl">Avatar</div><div class="prof-av-row" id="profAvPick"></div>
+   <div class="prof-lbl">Avatar</div>
+<div class="prof-av-row" id="profAvPick"></div>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+  <div id="customAvPreview" style="width:44px;height:44px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted);overflow:hidden;flex-shrink:0">kein</div>
+  <div style="flex:1">
+    <label class="btn-acc" style="cursor:pointer;padding:7px 14px;font-size:.82rem;border-radius:6px;display:inline-block">
+      📁 Eigenes Bild
+      <input type="file" id="customAvInput" accept="image/*" style="display:none">
+    </label>
+    <button id="customAvClear" class="btn-sec" style="margin-left:6px;font-size:.82rem;padding:7px 10px">✕ Entfernen</button>
+  </div>
+</div>
     <div class="prof-lbl">Farbe</div><div class="prof-col-row" id="profColPick"></div>
     <div class="prof-lbl">Name</div><input id="profNameIn" type="text" maxlength="24"/>
     <div class="prof-lbl">Status</div>
@@ -363,6 +374,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
       <option value="browser">Browser (einfach)</option>
       <option value="basic" selected>Basic Filter (Empfohlen)</option>
       <option value="aggressive">Aggressiv</option>
+      <option value="broadcast">Broadcast (nur Sprache)</option>
     </select>
     <div style="background:var(--bg4);border-radius:8px;padding:12px;margin-bottom:14px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -630,7 +642,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 </div>
 
 <script>
-const AVATARS=['😎','🐱','🦊','🐼','🦁','🐸','👾','🤖','🦄','🐺','🎃','💀'];
+const AVATARS=['😎','🐱','🦊','🐼','🦁','🐸','👾','🤖','🦄','🐺','🎃','💀','🕊️'];
 const COLORS=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c','#00bcd4','#ff5722','#9c27b0'];
 const EMOJIS=['😀','😁','😂','🤣','😅','😆','😇','😈','😉','😊','😋','😌','😍','🥰','😎','🤩','🥸','🤔','😐','😑','😶','😏','😒','🙄','😬','🤥','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','💫','🤯','🤠','🥳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','🤬','😠','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','👋','🤚','🖐','✋','👌','🤌','✌️','🤞','🤙','🤘','👍','👎','✊','👊','👏','🙌','👐','🤲','🙏','💪','🖕','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','💕','💞','💓','💗','💖','💘','💝','🔥','💥','✨','⭐','🌟','💫','❄️','🌈','☀️','🌙','⚡','🎉','🎊','🎯','🏆','🥇','💯','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐸','🐵','🙈','🙉','🙊','🦄','🐺','🦋','🐝','🐛','🦎','🐍','🐡','🐬','🦈','🐳','🍕','🍔','🌮','🌯','🍟','🍿','🥓','🍖','🍗','🥩','🧆','🥚','🍳','🥞','🧇','🥐','🍞','🧀','🥗','🥙','🥪','🍱','🍣','🍜','🍝','🍛','🍲','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧃','☕','🧋','🎮','🕹️','👾','🎲','🎰','🃏','♟️','🎭','🎨','🖥️','💻','📱','⌨️','🖱️','📷','📸','🎥','📹','📡','💰','💵','💸','💎','👑','🎩','🕶️','🧢','👒','🎓','🏅','🚀','🛸','🌍','🌊','🏔️','🌋','🎵','🎶','🎸','🥁','🎺','🎻','🎤','🔊','📢','🔔','🚨','⚠️','✅','❌','❓','❗','💤','🔑','🗝️','🔓','🔒'];
 let VOICE_CHANNELS=['Lounge','Gaming VC','Musik VC'];
@@ -725,6 +737,8 @@ let peerConns={},localStream=null,shareStream=null,camStream=null,currentVoiceRo
 let typingTimer=null,lastUserList=[];
 let audioCtx=null,localGainNode=null;
 let dmTarget=null,dmUnread={},pendingCallFrom=null;
+let customAvatar=null;
+try{customAvatar=localStorage.getItem('brotalk_customav')||null;}catch{}
 let sounds={};
 try{sounds=JSON.parse(localStorage.getItem('brotalk_sounds')||'{}');}catch{}
 let currentSound=null,soundVolume=1.0;
@@ -901,11 +915,9 @@ function doRelogin(){
   saveProfile();
   if(currentVoiceRoom)leaveVoice();
   if(socket){socket.disconnect();socket=null;}
-  document.getElementById('loginOverlay').style.display='flex';
-  document.getElementById('nameIn').value=myName;
-  document.getElementById('roomIn').value=myRoom;
-  document.querySelectorAll('.av-opt').forEach(d=>d.classList.toggle('selected',d.dataset.av===myAvatar));
-  document.querySelectorAll('.col-dot').forEach(d=>d.classList.toggle('selected',d.dataset.col===myColor));
+  // direkt neu verbinden ohne Login-Screen
+  socket=null;
+  setTimeout(()=>doJoin(),300);
 }
 
 // ── NOISE GATE UI ──
@@ -1221,7 +1233,18 @@ socket.on('voicePasswordWrong',()=>{
 }
 
 function updateSelfBar(){
-  const av=document.getElementById('selfAv');av.textContent=myAvatar;av.style.background=myColor+'66';
+  const av=document.getElementById('selfAv');
+  if(customAvatar){
+    av.textContent='';
+    av.style.background=myColor+'66';
+    av.style.backgroundImage=`url('${customAvatar}')`;
+    av.style.backgroundSize='cover';
+    av.style.backgroundPosition='center';
+  }else{
+    av.textContent=myAvatar;
+    av.style.background=myColor+'66';
+    av.style.backgroundImage='none';
+  }
   document.getElementById('selfName').textContent=myName;
 }
 // ── ROOMS ──
@@ -1392,33 +1415,64 @@ function renderUserList(users){
 // ── PROFILE ──
 document.getElementById('settingsBtn').onclick=()=>{
   document.getElementById('profNameIn').value=myName;
+  applyCustomAv();
   document.querySelectorAll('.prof-av').forEach(d=>d.classList.toggle('selected',d.dataset.av===myAvatar));
   document.querySelectorAll('.prof-col').forEach(d=>d.classList.toggle('selected',d.dataset.col===myColor));
   updateNsCheckBtn();
   document.getElementById('profileModal').classList.add('on');
 };
+// Custom Avatar
+
+function applyCustomAv(){
+  const prev=document.getElementById('customAvPreview');
+  if(!prev)return;
+  if(customAvatar){
+    prev.innerHTML=`<img src="${customAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  }else{
+    prev.textContent='kein';
+  }
+}
+document.getElementById('customAvInput').onchange=function(){
+  const f=this.files[0];if(!f)return;
+  if(f.size>2*1024*1024){alert('Max 2MB!');return;}
+  const r=new FileReader();
+  r.onload=e=>{
+    customAvatar=e.target.result;
+    localStorage.setItem('brotalk_customav',customAvatar);
+    applyCustomAv();
+    // Emoji-Auswahl aufheben
+    document.querySelectorAll('.prof-av').forEach(d=>d.classList.remove('selected'));
+  };
+  r.readAsDataURL(f);
+  this.value='';
+};
+document.getElementById('customAvClear').onclick=()=>{
+  customAvatar=null;
+  localStorage.removeItem('brotalk_customav');
+  applyCustomAv();
+};
 document.getElementById('cancelProfile').onclick=()=>document.getElementById('profileModal').classList.remove('on');
 document.getElementById('logoutBtn').onclick=()=>{
   if(!confirm('Wirklich ausloggen? Du kannst danach einen neuen Charakter erstellen.'))return;
-  // Voice verlassen
   if(currentVoiceRoom)leaveVoice();
-  // Socket trennen
-  if(socket){socket.disconnect();socket=null;}
-  // Profil aus localStorage löschen
+  if(socket){socket.off();socket.disconnect();socket=null;}
   localStorage.removeItem('brotalk_profile');
-  // Reset
   myName='';myRoom='Allgemein';myAvatar='😎';myColor='#5865f2';
-  // Modal schließen, Login zeigen
   document.getElementById('profileModal').classList.remove('on');
   document.getElementById('nameIn').value='';
   document.getElementById('roomIn').value='';
   document.querySelectorAll('.av-opt').forEach((d,i)=>d.classList.toggle('selected',i===0));
   document.querySelectorAll('.col-dot').forEach((d,i)=>d.classList.toggle('selected',i===0));
+  document.getElementById('chatArea').innerHTML='';
+  document.getElementById('roomList').innerHTML='';
+  document.getElementById('userList').innerHTML='';
   document.getElementById('loginOverlay').style.display='flex';
+  setTimeout(()=>document.getElementById('nameIn').focus(),100);
 };
 document.getElementById('saveProfile').onclick=()=>{
   const name=document.getElementById('profNameIn').value.trim()||myName;
-  const av=document.querySelector('.prof-av.selected')?.dataset.av||myAvatar;
+  // custom Avatar hat Vorrang vor Emoji
+  const av=customAvatar||document.querySelector('.prof-av.selected')?.dataset.av||myAvatar;
   const col=document.querySelector('.prof-col.selected')?.dataset.col||myColor;
   const status=document.getElementById('profStatus').value;
   myName=name;myAvatar=av;myColor=col;
@@ -1486,17 +1540,47 @@ async function setupAudioProcessing(stream){
     const lim=audioCtx.createDynamicsCompressor();lim.threshold.value=-3;lim.knee.value=0;lim.ratio.value=15;lim.attack.value=0.001;lim.release.value=0.08;
     outGain.gain.value=0.95;
     lastNode=chain([lastNode,notch,notch2,hp,lp,kbCut,presence,comp,lim,outGain]);
-  }else if(effectiveNsMode==='aggressive'){
-    const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=180;hp.Q.value=0.7;
-    const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=7000;lp.Q.value=0.6;
-    const kbCut=audioCtx.createBiquadFilter();kbCut.type='peaking';kbCut.frequency.value=4000;kbCut.Q.value=1.5;kbCut.gain.value=-12;
-    const kbCut2=audioCtx.createBiquadFilter();kbCut2.type='peaking';kbCut2.frequency.value=3000;kbCut2.Q.value=1.2;kbCut2.gain.value=-8;
-    const vBoost=audioCtx.createBiquadFilter();vBoost.type='peaking';vBoost.frequency.value=1800;vBoost.Q.value=1.0;vBoost.gain.value=5;
-    const comp=audioCtx.createDynamicsCompressor();comp.threshold.value=-30;comp.knee.value=6;comp.ratio.value=6;comp.attack.value=0.003;comp.release.value=0.15;
-    const comp2=audioCtx.createDynamicsCompressor();comp2.threshold.value=-20;comp2.knee.value=4;comp2.ratio.value=10;comp2.attack.value=0.001;comp2.release.value=0.08;
+  
+     }else if(effectiveNsMode==='aggressive'){
+    // Hartes Bandpass nur Sprachkern 200–6000 Hz
+    const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=200;hp.Q.value=1.2;
+    const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=6000;lp.Q.value=1.2;
+    // Tiefes Rumpeln killen
+    const hp2=audioCtx.createBiquadFilter();hp2.type='highpass';hp2.frequency.value=250;hp2.Q.value=0.5;
+    // Tastatur/Klick-Frequenzen dämpfen (3–5kHz)
+    const kbCut=audioCtx.createBiquadFilter();kbCut.type='peaking';kbCut.frequency.value=3800;kbCut.Q.value=2.0;kbCut.gain.value=-18;
+    const kbCut2=audioCtx.createBiquadFilter();kbCut2.type='peaking';kbCut2.frequency.value=5000;kbCut2.Q.value=1.8;kbCut2.gain.value=-14;
+    // Sprach-Präsenz leicht boosten damit Stimme überlebt
+    const vBoost=audioCtx.createBiquadFilter();vBoost.type='peaking';vBoost.frequency.value=1600;vBoost.Q.value=0.8;vBoost.gain.value=4;
+    // Starker Kompressor – drückt Rauschen unter die Rauschschwelle
+    const comp=audioCtx.createDynamicsCompressor();comp.threshold.value=-35;comp.knee.value=4;comp.ratio.value=12;comp.attack.value=0.002;comp.release.value=0.1;
+    // Limiter
     const lim=audioCtx.createDynamicsCompressor();lim.threshold.value=-2;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=0.001;lim.release.value=0.05;
-    outGain.gain.value=0.85;
-    lastNode=chain([lastNode,notch,notch2,hp,lp,kbCut,kbCut2,vBoost,comp,comp2,lim,outGain]);
+    outGain.gain.value=0.75;
+    lastNode=chain([lastNode,notch,notch2,hp,hp2,lp,kbCut,kbCut2,vBoost,comp,lim,outGain]);
+
+  }else if(effectiveNsMode==='broadcast'){
+    // ── BROADCAST: Nur Sprache, alles andere tot ──
+    // Sehr hartes Bandpass 300–3400 Hz (Telefon-Qualität aber sauber)
+    const hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=300;hp.Q.value=2.0;
+    const lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=3400;lp.Q.value=2.0;
+    // Zweite Stufe nochmal enger
+    const hp2=audioCtx.createBiquadFilter();hp2.type='highpass';hp2.frequency.value=350;hp2.Q.value=1.0;
+    const lp2=audioCtx.createBiquadFilter();lp2.type='lowpass';lp2.frequency.value=3200;lp2.Q.value=1.0;
+    // Rumpeln & Netzbrumm killen
+    const sub=audioCtx.createBiquadFilter();sub.type='highpass';sub.frequency.value=400;sub.Q.value=0.5;
+    // Alles über 3.5kHz brutal dämpfen (Zischen, Tastatur, Lüfter)
+    const hfKill=audioCtx.createBiquadFilter();hfKill.type='peaking';hfKill.frequency.value=4000;hfKill.Q.value=0.8;hfKill.gain.value=-30;
+    // Sprach-Boost 800–2000 Hz für Verständlichkeit
+    const vBoost=audioCtx.createBiquadFilter();vBoost.type='peaking';vBoost.frequency.value=1200;vBoost.Q.value=0.7;vBoost.gain.value=6;
+    // Aggressiver Kompressor – macht Rauschen-Pegel flach
+    const comp=audioCtx.createDynamicsCompressor();comp.threshold.value=-40;comp.knee.value=3;comp.ratio.value=16;comp.attack.value=0.001;comp.release.value=0.08;
+    // Zweiter Kompressor für micro-transients
+    const comp2=audioCtx.createDynamicsCompressor();comp2.threshold.value=-24;comp2.knee.value=2;comp2.ratio.value=8;comp2.attack.value=0.001;comp2.release.value=0.05;
+    // Hard Limiter
+    const lim=audioCtx.createDynamicsCompressor();lim.threshold.value=-1;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=0.001;lim.release.value=0.03;
+    outGain.gain.value=0.65;
+    lastNode=chain([lastNode,notch,notch2,hp,hp2,lp,lp2,sub,hfKill,vBoost,comp,comp2,lim,outGain]);
   }
   if(noiseGateEnabled){
     await ensureNoiseGateWorklet(audioCtx);
