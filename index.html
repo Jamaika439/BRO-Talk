@@ -21,7 +21,23 @@
   --font:'Segoe UI',sans-serif;
   --sidebar-bg:var(--bg1);--header-bg:var(--bg3);--chat-input-bg:var(--bg4);
 }
-body{font-family:var(--font);background:var(--bg2);color:var(--text);display:flex;height:100vh;overflow:hidden;font-size:14px}
+body{font-family:var(--font);background:var(--bg2);color:var(--text);display:flex;height:100vh;height:100dvh;overflow:hidden;font-size:14px}
+@media(max-width:768px){
+  #sidebar{position:fixed;left:-240px;top:0;bottom:0;z-index:100;transition:left .25s;box-shadow:4px 0 24px #000a}
+  #sidebar.open{left:0}
+  #main{width:100vw}
+  #mobileMenuBtn{display:flex!important}
+  #mobileOverlay{display:none;position:fixed;inset:0;background:#0007;z-index:99}
+  #mobileOverlay.on{display:block}
+  .msg-img{max-width:100%}
+  #videoGrid{max-height:180px}
+  .video-tile video{width:160px;height:90px}
+  #flyingWin{width:260px}
+  #dmWindow{width:100vw;right:0;bottom:0;border-radius:14px 14px 0 0;height:70vh}
+  #inputWrap{padding:0 8px 10px}
+  #chHeader{padding:10px 12px}
+  .lbox{width:92vw;padding:24px 20px}
+}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bg0);border-radius:3px}
 
 #loginOverlay{position:fixed;inset:0;background:var(--bg0);display:flex;align-items:center;justify-content:center;z-index:999}
@@ -258,6 +274,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .sp-screen-tile img{width:100%;border-radius:3px;aspect-ratio:16/9;object-fit:cover;background:#000;margin-bottom:3px;display:block}
 .sp-screen-tile span{font-size:.68rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' 'unsafe-inline' https://cdn.socket.io;
@@ -622,7 +639,8 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 
 <!-- MAIN -->
 <div id="main">
-  <div id="chHeader">
+ <div id="chHeader">
+  <button id="mobileMenuBtn" style="display:none;background:none;border:none;color:var(--text);font-size:1.4rem;cursor:pointer;padding:0 8px 0 0;flex-shrink:0" onclick="toggleMobileMenu()">☰</button>
     <span style="color:var(--muted)">#</span>
     <span id="chName">allgemein</span>
     <button id="clearChatBtn">🗑 Leeren</button>
@@ -2629,6 +2647,16 @@ function initDmDrag(){
 }
 function openLightbox(src){document.getElementById('lbImg').src=src;document.getElementById('lightbox').classList.add('on');}
 document.getElementById('lightbox').onclick=()=>document.getElementById('lightbox').classList.remove('on');
+function toggleMobileMenu(){
+  document.getElementById('sidebar').classList.toggle('open');
+  const ov=document.getElementById('mobileOverlay');
+  ov.classList.toggle('on');
+}
+// Overlay zum Schließen
+const mobileOv=document.createElement('div');
+mobileOv.id='mobileOverlay';
+mobileOv.onclick=toggleMobileMenu;
+document.body.appendChild(mobileOv);
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function linkify(s){return s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:var(--accent)">$1</a>');}
 </script>

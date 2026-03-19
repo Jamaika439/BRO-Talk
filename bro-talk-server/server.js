@@ -109,7 +109,7 @@ io.on('connection', socket => {
     const u = users[socket.id]; if (!u) return;
     if (name)   u.name   = name;
     if (color)  u.color  = color;
-    if (avatar) u.avatar = avatar;
+    if (avatar) u.avatar = typeof avatar === 'string' ? avatar.slice(0, 500000) : avatar;
     broadcastUsers();
     socket.emit('profileUpdated', { name: u.name, color: u.color, avatar: u.avatar });
   });
