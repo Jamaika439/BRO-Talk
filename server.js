@@ -234,16 +234,21 @@ io.on('connection', socket => {
     broadcastUsers();
   });
 
-  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
+  
+  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
+  onsole.log('SERVER received fmtStyle:',fmtStyle,'type:',type);
     text = sanitize(text, 2000);
-    room = sanitize(room, 32);
+room = sanitize(room, 32);
+fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
     const u = users[socket.id]; if (!u) return;
+    const allowedTypes = ['text', 'image', 'file', 'formatted'];
+if (!allowedTypes.includes(type)) return;
     const msg = {
-      id: Date.now(), user: u.name, userId: socket.id,
-      color: u.color, avatar: u.avatar,
-      type, content: type === 'file' || type === 'image' ? fileUrl : text,
-      fileName: fileName || null, timestamp: ts()
-    };
+  id: Date.now(), user: u.name, userId: socket.id,
+  color: u.color, avatar: u.avatar,
+  type, content: type === 'file' || type === 'image' ? fileUrl : text,
+  fileName: fileName || null, fmtStyle: fmtStyle||null, timestamp: ts()
+};
     addMessage(room, msg);
     io.to(room).emit('message', msg);
   });

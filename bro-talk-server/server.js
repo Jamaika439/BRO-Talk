@@ -134,14 +134,14 @@ io.on('connection', socket => {
   });
 
   // ── MESSAGE ─────────────────────────
-  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName }) => {
+socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
     const u = users[socket.id];
     if (!u) return;
     const msg = {
       id: Date.now(), user: u.name, userId: socket.id,
       color: u.color, avatar: u.avatar,
       type, content: type === 'file' || type === 'image' ? fileUrl : text,
-      fileName: fileName || null, timestamp: ts()
+      fileName: fileName || null, fmtStyle: fmtStyle||null, timestamp: ts()
     };
     addMessage(room, msg);
     io.to(room).emit('message', msg);
