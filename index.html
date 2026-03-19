@@ -197,9 +197,10 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .zone-item button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 6px;border-radius:4px}
 .zone-item button:hover{color:var(--red)}
 
-.modal-bg#soundModal .mbox{width:420px}
-#sbGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
-.sb-btn{background:var(--bg4);border:none;color:var(--text);padding:10px 6px;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;min-height:64px;box-sizing:border-box}
+.modal-bg#soundModal .mbox{width:560px}
+#sbGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.sb-btn{background:var(--bg4);border:none;color:var(--text);padding:8px 4px;border-radius:8px;cursor:pointer;font-size:.72rem;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;height:70px;box-sizing:border-box;overflow:hidden;word-break:break-all;text-align:center}
+.sb-btn .sb-icon{font-size:1.2rem;flex-shrink:0}
 .sb-btn:hover{background:var(--accent);color:#fff}.sb-btn .sb-icon{font-size:1.4rem}
 
 #dmWindow{display:none;position:fixed;bottom:24px;right:24px;width:320px;height:460px;background:var(--bg2);border-radius:14px;box-shadow:0 16px 48px #000c;border:1px solid var(--bg4);flex-direction:column;z-index:400;overflow:hidden}
@@ -504,14 +505,14 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 
 <!-- SOUNDBOARD -->
 <div class="modal-bg" id="soundModal">
-  <div class="mbox" style="width:420px">
+  <div class="mbox" style="width:560px">
     <div style="display:flex;align-items:center;margin-bottom:12px">
       <button id="closeSoundsX" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:2px 8px;border-radius:5px;margin-right:8px" onclick="document.getElementById('soundModal').classList.remove('on')">✕</button>
       <h3 style="margin-bottom:0">🎵 Soundboard</h3>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <span style="font-size:.8rem;color:var(--muted)">🔊</span>
-      <input type="range" id="sbVolume" min="0" max="100" value="100" style="width:120px;accent-color:var(--accent);height:4px">
+      <input type="range" id="sbVolume" min="0" max="100" value="100" style="width:140px;accent-color:var(--accent);height:4px;padding:0;margin:0">
       <span id="sbVolLabel" style="font-size:.8rem;color:var(--muted);min-width:34px">100%</span>
       <button id="sbStopBtn" style="margin-left:auto;background:var(--bg4);border:1px solid var(--red);color:var(--red);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:700">⏹ Stop</button>
     </div>
@@ -1284,8 +1285,20 @@ function doJoin(){
     lastUserList.forEach(u=>{if(u.id!==myId&&!newIds.has(u.id))playUISound('leave');});
     renderUserList(newList);
   });
-  socket.on('roomList',rooms=>{db.rooms=rooms;renderRoomList(rooms);});
-  socket.on('roomChanged',({room,history})=>{myRoom=room;document.getElementById('chName').textContent=room;document.getElementById('chatArea').innerHTML='';history.forEach(m=>renderMsg(m));scrollChat();renderRoomList(db.rooms||[]);});
+  socket.on('roomList',renderRoomList);
+ socket.on('roomChanged',({room,history})=>{
+  myRoom=room;
+  document.getElementById('chName').textContent=room;
+  document.getElementById('chatArea').innerHTML='';
+  history.forEach(m=>renderMsg(m));
+  scrollChat();
+  // Raumliste neu rendern damit aktiver Raum grün wird
+  document.querySelectorAll('.room-item').forEach(d=>{
+    const isActive=d.querySelector('span:last-of-type')?.textContent===room;
+    d.classList.toggle('active',isActive);
+    d.style.color=isActive?'var(--green)':'';
+  });
+});
   socket.on('profileUpdated',d=>{myName=d.name;myColor=d.color;myAvatar=d.avatar;updateSelfBar();saveProfile();});
   socket.on('typing',({name:n})=>{const tr=document.getElementById('typingRow');tr.textContent=n+' tippt…';clearTimeout(tr._t);tr._t=setTimeout(()=>tr.textContent='',2500);});
   socket.on('ping_check',t=>socket.emit('pong_check',t));
@@ -1388,7 +1401,7 @@ function renderRoomList(rooms){
     if(isActive)d.style.color='var(--green)';
 
 
-
+    
     d.innerHTML=`<span class="room-dot"></span><span style="flex:1">${esc(r)}</span>`;
     d.onclick=()=>switchRoom(r);
     if(r!=='Allgemein'){
@@ -2157,8 +2170,33 @@ async function createCompositeStream(screenStream,camStream2){
 document.getElementById('shareBtn').onclick=()=>{
   if(!currentVoiceRoom){alert('Erst Sprachkanal beitreten!');return;}
   if(shareStream){stopShare();return;}
-  openStreamPicker();
+  showStreamWarning();
 };
+
+function showStreamWarning(){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:#0009;z-index:999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML=`
+    <div style="background:var(--bg2);border-radius:14px;padding:28px 36px;max-width:420px;text-align:center;box-shadow:0 16px 48px #000c;border:2px solid var(--yellow)">
+      <div style="font-size:2.5rem;margin-bottom:12px">⚠️</div>
+      <h3 style="color:var(--yellow);margin-bottom:10px;font-size:1.1rem">Windows Audio-Hinweis</h3>
+      <p style="color:var(--text);font-size:.88rem;line-height:1.6;margin-bottom:8px">
+        Windows mutet sich möglicherweise während du andere Apps  streamst.
+      </p>
+      <p style="color:var(--muted);font-size:.82rem;line-height:1.6;margin-bottom:20px">
+        Falls das passiert:<br>
+        <strong style="color:var(--text)">Rechtsklick Lautsprecher → Soundeinstellungen → Weitere Soundeinstellungen → Kommunikation → "Nichts unternehmen" </strong>
+      </p>
+     <p style="color:var(--muted);font-size:.82rem;margin-bottom:20px">oder entmute dein Win einfach</p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button id="streamWarnCancel" style="background:var(--bg4);border:none;color:var(--text);padding:10px 24px;border-radius:8px;cursor:pointer;font-weight:700">Abbrechen</button>
+        <button id="streamWarnOk" style="background:var(--accent);border:none;color:#fff;padding:10px 24px;border-radius:8px;cursor:pointer;font-weight:700">✅ Verstanden, weiter</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('streamWarnOk').onclick=()=>{overlay.remove();openStreamPicker();};
+  document.getElementById('streamWarnCancel').onclick=()=>overlay.remove();
+}
 
 async function applyShareStream(stream){
   if(shareStream){
