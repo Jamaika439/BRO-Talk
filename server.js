@@ -236,7 +236,7 @@ io.on('connection', socket => {
 
   
   socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
-  onsole.log('SERVER received fmtStyle:',fmtStyle,'type:',type);
+  
     text = sanitize(text, 2000);
 room = sanitize(room, 32);
 fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
