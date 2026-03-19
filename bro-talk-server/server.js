@@ -4,26 +4,33 @@ const { Server } = require('socket.io');
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
-const bcrypt = require('bcryptjs');
+const bcrypt   = require('bcryptjs');
 
-// ── Ordner & JSON-DB Setup ───────────────
+const PORT       = process.env.PORT || 3000;
 const dataDir    = path.join(__dirname, 'data');
 const uploadsDir = path.join(dataDir, 'uploads');
 const dbFile     = path.join(dataDir, 'db.json');
 
 [dataDir, uploadsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
+// ── DB ────────────────────────────────────────────────────────
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
-  catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], profiles: {}, dms: {} }; }
+  catch {
+    return {
+      messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'],
+      roomPasswords: {}, profiles: {}, dms: {},
+      voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'], voicePasswords: {}
+    };
+  }
 }
-function saveDB(db) {
-  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
-}
+function saveDB(db) { fs.writeFileSync(dbFile, JSON.stringify(db, null, 2)); }
 
 let db = loadDB();
-// Migration: dms-Feld sicherstellen
-if (!db.dms) { db.dms = {}; saveDB(db); }
+if (!db.dms)            { db.dms = {};            saveDB(db); }
+if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
+if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
+if (!db.voicePasswords) { db.voicePasswords = {}; saveDB(db); }
 
 function addMessage(room, msg) {
   if (!db.messages[room]) db.messages[room] = [];
@@ -31,97 +38,75 @@ function addMessage(room, msg) {
   if (db.messages[room].length > 200) db.messages[room] = db.messages[room].slice(-200);
   saveDB(db);
 }
-function getMessages(room) {
-  return (db.messages[room] || []).slice(-80);
-}
-
-// ── DM Persistenz ───────────────────────
-// Key = sortiertes Paar "id1_id2" – aber wir indexieren nach beiden socketIds
-// Da socket IDs bei Reconnect wechseln, speichern wir nach Name-Paaren
-function dmKey(nameA, nameB) {
-  return [nameA, nameB].sort().join('__DM__');
-}
-function addDM(nameA, nameB, msg) {
-  const key = dmKey(nameA, nameB);
-  if (!db.dms[key]) db.dms[key] = [];
-  db.dms[key].push(msg);
-  // Max 200 DMs pro Konversation
-  if (db.dms[key].length > 200) db.dms[key] = db.dms[key].slice(-200);
+function getMessages(room) { return (db.messages[room] || []).slice(-80); }
+function dmKey(a, b)       { return [a, b].sort().join('__DM__'); }
+function addDM(a, b, msg)  {
+  const k = dmKey(a, b);
+  if (!db.dms[k]) db.dms[k] = [];
+  db.dms[k].push(msg);
+  if (db.dms[k].length > 200) db.dms[k] = db.dms[k].slice(-200);
   saveDB(db);
 }
-function getDMs(nameA, nameB) {
-  return (db.dms[dmKey(nameA, nameB)] || []).slice(-100);
-}
+function getDMs(a, b) { return (db.dms[dmKey(a, b)] || []).slice(-100); }
 
-// ── Multer ──────────────────────────────
+// ── Multer ────────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: uploadsDir,
-  filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
+  filename: (_, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-// ── Express ─────────────────────────────
+// ── Express ───────────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
-const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6 });
+const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6, pingTimeout: 60000, pingInterval: 25000 });
 
 app.use('/uploads', express.static(uploadsDir));
-app.use(express.json());
-
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  res.json({ url: `http://localhost:3000/uploads/${req.file.filename}`, name: req.file.originalname });
-});
-
+app.use('/assets',  express.static(path.join(__dirname, 'assets')));
+app.use(express.json({ limit: '1mb' }));
+app.get('/',              (_, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
-app.get('/rooms', (req, res) => res.json(db.rooms));
-
-// ── DM History Endpoint ─────────────────
-// Client fragt: GET /dm-history?a=Alice&b=Bob
-app.get('/dm-history', (req, res) => {
+app.get('/rooms',         (_, res) => res.json(db.rooms));
+app.get('/dm-history',    (req, res) => {
   const { a, b } = req.query;
   if (!a || !b) return res.status(400).json({ error: 'Missing names' });
   res.json(getDMs(a, b));
 });
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const host = process.env.APP_URL || `http://localhost:${PORT}`;
+  res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
+});
 
-// ── Socket.io ───────────────────────────
-const users      = {};  // socketId → { name, room, color, avatar, status, inVoice }
-const voiceRooms = {};  // roomName → Set<socketId>
+// ── Helpers ───────────────────────────────────────────────────
+const users = {}, voiceRooms = {};
+function ts() { return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+function broadcastUsers() { io.emit('userList', Object.entries(users).map(([id, u]) => ({ id, ...u }))); }
+function broadcastRooms() { io.emit('roomList', db.rooms); }
+function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() }); }
 
-function ts() {
-  return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-}
-function broadcastUsers() {
-  io.emit('userList', Object.entries(users).map(([id, u]) => ({ id, ...u })));
-}
-function broadcastRooms() {
-  io.emit('roomList', db.rooms);
-}
-function sysMsg(room, text) {
-  io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() });
-}
-
+// ── Socket.IO ─────────────────────────────────────────────────
 io.on('connection', socket => {
-  const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 4000);
+  const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10000);
   socket.on('pong_check', t => socket.emit('ping_result', Date.now() - t));
 
-  // ── JOIN ────────────────────────────
+  // ── Join ──
   socket.on('join', ({ name, room = 'Allgemein', color = '#5865f2', avatar = '😎' }) => {
+    if (!name) return;
     users[socket.id] = { name, room, color, avatar, status: 'online', inVoice: false };
     if (!db.rooms.includes(room)) { db.rooms.push(room); saveDB(db); }
     socket.join(room);
     socket.emit('joined', { name, room });
     socket.emit('roomList', db.rooms);
-    socket.emit('voiceChannelList', db.voiceChannels || ['Lounge','Gaming VC','Musik VC']);
     socket.emit('history', getMessages(room));
+    socket.emit('voiceChannelList', db.voiceChannels);
     broadcastUsers();
     sysMsg(room, `${name} ist beigetreten.`);
   });
 
-  // ── PROFIL ──────────────────────────
+  // ── Profil ──
   socket.on('updateProfile', ({ name, color, avatar }) => {
-    const u = users[socket.id];
-    if (!u) return;
+    const u = users[socket.id]; if (!u) return;
     if (name)   u.name   = name;
     if (color)  u.color  = color;
     if (avatar) u.avatar = avatar;
@@ -130,35 +115,22 @@ io.on('connection', socket => {
   });
 
   socket.on('setStatus', status => {
-    if (users[socket.id]) { users[socket.id].status = status; broadcastUsers(); }
+    const allowed = ['online', 'away', 'dnd', 'offline'];
+    if (users[socket.id] && allowed.includes(status)) { users[socket.id].status = status; broadcastUsers(); }
   });
 
-  // ── MESSAGE ─────────────────────────
-socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
-    const u = users[socket.id];
-    if (!u) return;
-    const msg = {
-      id: Date.now(), user: u.name, userId: socket.id,
-      color: u.color, avatar: u.avatar,
-      type, content: type === 'file' || type === 'image' ? fileUrl : text,
-      fileName: fileName || null, fmtStyle: fmtStyle||null, timestamp: ts()
-    };
-    addMessage(room, msg);
-    io.to(room).emit('message', msg);
+  // ── Rooms ──
+  socket.on('checkRoomPassword', ({ room }) => {
+    db.roomPasswords[room] ? socket.emit('roomNeedsPassword', { room }) : socket.emit('roomNoPassword', { room });
   });
 
-  // ── ROOMS ───────────────────────────
-  socket.on('changeRoom', ({ newRoom }) => {
-    const u = users[socket.id];
-    if (!u) return;
-if (db.roomPasswords?.[newRoom]) {
-    if (!password || !bcrypt.compareSync(password, db.roomPasswords[newRoom])) {
-      socket.emit('roomPasswordWrong');
-      return;
+  socket.on('changeRoom', async ({ newRoom, password }) => {
+    const u = users[socket.id]; if (!u) return;
+    if (db.roomPasswords[newRoom]) {
+      if (!password || !(await bcrypt.compare(password, db.roomPasswords[newRoom]))) {
+        socket.emit('roomPasswordWrong'); return;
+      }
     }
-  }
-
-
     sysMsg(u.room, `${u.name} hat den Raum verlassen.`);
     socket.leave(u.room);
     u.room = newRoom;
@@ -169,65 +141,50 @@ if (db.roomPasswords?.[newRoom]) {
     sysMsg(newRoom, `${u.name} ist beigetreten.`);
   });
 
-socket.on('createRoom', ({ name, password }) => {
-  if (!name || db.rooms.includes(name)) return;
-  db.rooms.push(name);
-  if (password) {
-    if (!db.roomPasswords) db.roomPasswords = {};
-    db.roomPasswords[name] = bcrypt.hashSync(password, 10);
-  }
-  saveDB(db);
-  broadcastRooms();
-});
-
-socket.on('checkRoomPassword',({room})=>{
-  if(db.roomPasswords?.[room]){
-    socket.emit('roomNeedsPassword',{room});
-  } else {
-    socket.emit('roomNoPassword',{room});
-  }
-});
+  socket.on('createRoom', async ({ name, password }) => {
+    if (!name || db.rooms.includes(name)) return;
+    db.rooms.push(name);
+    if (password) db.roomPasswords[name] = await bcrypt.hash(password, 10);
+    saveDB(db); broadcastRooms();
+  });
 
   socket.on('deleteRoom', ({ name }) => {
-  if(!name || name === 'Allgemein') return;
-  db.rooms = db.rooms.filter(r => r !== name);
-  delete db.messages[name];
-  saveDB(db);
-  broadcastRooms();
-  io.emit('roomDeleted', { name });
-});
+    if (!name || name === 'Allgemein') return;
+    db.rooms = db.rooms.filter(r => r !== name);
+    delete db.messages[name];
+    delete db.roomPasswords[name];
+    saveDB(db); broadcastRooms();
+    io.emit('roomDeleted', { name });
+  });
 
-socket.on('createVoiceChannel',({name, password})=>{
-  if(!name||db.voiceChannels?.includes(name))return;
-  if(!db.voiceChannels)db.voiceChannels=['Lounge','Gaming VC','Musik VC'];
-  db.voiceChannels.push(name);
-  if(password){
-    if(!db.voicePasswords)db.voicePasswords={};
-    db.voicePasswords[name]=bcrypt.hashSync(password,10);
-  }
-  saveDB(db);
-  io.emit('voiceChannelList',db.voiceChannels);
-});
+  // ── Voice Channels ──
+  socket.on('checkVoicePassword', ({ room }) => {
+    db.voicePasswords[room] ? socket.emit('voiceNeedsPassword', { room }) : socket.emit('voiceNoPassword', { room });
+  });
 
-socket.on('checkVoicePassword',({room})=>{
-  if(db.voicePasswords?.[room]){
-    socket.emit('voiceNeedsPassword',{room});
-  }else{
-    socket.emit('voiceNoPassword',{room});
-  }
-});
-
-socket.on('joinVoiceWithPassword',({room,password})=>{
-  if(db.voicePasswords?.[room]){
-    if(!password||!bcrypt.compareSync(password,db.voicePasswords[room])){
-      socket.emit('voicePasswordWrong');
-      return;
+  socket.on('joinVoiceWithPassword', async ({ room, password }) => {
+    if (db.voicePasswords[room] && !(await bcrypt.compare(password || '', db.voicePasswords[room]))) {
+      socket.emit('voicePasswordWrong'); return;
     }
-  }
-  socket.emit('voicePasswordOk',{room});
-});
+    socket.emit('voicePasswordOk', { room });
+  });
 
-  // ── VOICE ───────────────────────────
+  socket.on('createVoiceChannel', async ({ name, password }) => {
+    if (!name || db.voiceChannels.includes(name)) return;
+    db.voiceChannels.push(name);
+    if (password) db.voicePasswords[name] = await bcrypt.hash(password, 10);
+    saveDB(db);
+    io.emit('voiceChannelList', db.voiceChannels);
+  });
+
+  socket.on('deleteVoiceChannel', ({ name }) => {
+    if (!name || ['Lounge', 'Gaming VC', 'Musik VC'].includes(name)) return;
+    db.voiceChannels = db.voiceChannels.filter(v => v !== name);
+    delete db.voicePasswords[name];
+    saveDB(db);
+    io.emit('voiceChannelList', db.voiceChannels);
+  });
+
   socket.on('joinVoice', ({ room }) => {
     Object.entries(voiceRooms).forEach(([r, members]) => {
       if (r !== room && members.has(socket.id)) {
@@ -241,9 +198,7 @@ socket.on('joinVoiceWithPassword',({room,password})=>{
     voiceRooms[room].add(socket.id);
     if (users[socket.id]) users[socket.id].inVoice = true;
     socket.emit('voicePeers', { peers, room });
-    peers.forEach(pid => io.to(pid).emit('voicePeerJoined', {
-      peerId: socket.id, name: users[socket.id]?.name
-    }));
+    peers.forEach(pid => io.to(pid).emit('voicePeerJoined', { peerId: socket.id, name: users[socket.id]?.name }));
     broadcastUsers();
   });
 
@@ -254,7 +209,42 @@ socket.on('joinVoiceWithPassword',({room,password})=>{
     broadcastUsers();
   });
 
-  // ── WebRTC SIGNALING ────────────────
+  // ── Messages ──
+  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
+    const u = users[socket.id]; if (!u) return;
+    // fmtStyle als String durchlassen ohne sanitize
+    fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
+    const allowedTypes = ['text', 'image', 'file', 'formatted'];
+    if (!allowedTypes.includes(type)) return;
+    const msg = {
+      id: Date.now(), user: u.name, userId: socket.id,
+      color: u.color, avatar: u.avatar,
+      type, content: type === 'file' || type === 'image' ? fileUrl : text,
+      fileName: fileName || null, fmtStyle: fmtStyle, timestamp: ts()
+    };
+    addMessage(room, msg);
+    io.to(room).emit('message', msg);
+  });
+
+  socket.on('deleteMessage', ({ room, msgId }) => {
+    const u = users[socket.id]; if (!u) return;
+    if (db.messages[room]) {
+      const msg = db.messages[room].find(m => m.id === msgId);
+      if (msg && (msg.userId === socket.id || msg.user === u.name)) {
+        db.messages[room] = db.messages[room].filter(m => m.id !== msgId);
+        saveDB(db);
+        io.to(room).emit('messageDeleted', { msgId });
+      }
+    }
+  });
+
+  socket.on('clearChat', ({ room }) => {
+    db.messages[room] = [];
+    saveDB(db);
+    io.to(room).emit('chatCleared', { room });
+  });
+
+  // ── WebRTC ──
   socket.on('rtc-offer',  ({ targetId, offer })     => io.to(targetId).emit('rtc-offer',  { fromId: socket.id, fromName: users[socket.id]?.name, offer }));
   socket.on('rtc-answer', ({ targetId, answer })    => io.to(targetId).emit('rtc-answer', { fromId: socket.id, answer }));
   socket.on('rtc-ice',    ({ targetId, candidate }) => io.to(targetId).emit('rtc-ice',    { fromId: socket.id, candidate }));
@@ -263,65 +253,53 @@ socket.on('joinVoiceWithPassword',({room,password})=>{
     if (users[socket.id]) { users[socket.id].inVoice = false; broadcastUsers(); }
   });
 
-  // ── SOUNDBOARD ──────────────────────
+  // ── Sounds ──
   socket.on('playSound', ({ room, soundName, soundData }) => {
     socket.to(room).emit('playSound', { soundName, soundData, fromName: users[socket.id]?.name });
   });
+  socket.on('stopSound', ({ room }) => socket.to(room).emit('stopSound'));
 
-  // ── TYPING ──────────────────────────
+  // ── Typing ──
   socket.on('typing', ({ room }) => {
     const u = users[socket.id];
     if (u) socket.to(room).emit('typing', { name: u.name });
   });
 
-  // ── PRIVATE MESSAGES (mit Persistenz) ─
+  // ── DMs ──
   socket.on('privateMessage', ({ targetId, text }) => {
-    const sender   = users[socket.id];
-    const receiver = users[targetId];
+    const sender = users[socket.id], receiver = users[targetId];
     if (!sender) return;
-    const msg = {
-      fromId:   socket.id,
-      fromName: sender.name,
-      targetId,
-      text,
-      timestamp: ts()
-    };
-    // In DB speichern (nach Namen, da IDs sich ändern)
+    const msg = { fromId: socket.id, fromName: sender.name, targetId, text, timestamp: ts() };
     if (receiver) addDM(sender.name, receiver.name, msg);
-
-    // An Empfänger senden
     io.to(targetId).emit('privateMessage', { ...msg, toSelf: false });
-    // Zurück an Sender (Bestätigung)
     socket.emit('privateMessage', { ...msg, toSelf: true });
   });
 
-  // ── DM History laden ────────────────
-  // Client fragt gezielt nach History wenn er DM öffnet
   socket.on('getDmHistory', ({ targetName }) => {
-    const me = users[socket.id];
-    if (!me || !targetName) return;
-    const history = getDMs(me.name, targetName);
-    socket.emit('dmHistory', { targetName, messages: history });
+    const me = users[socket.id]; if (!me || !targetName) return;
+    socket.emit('dmHistory', { targetName, messages: getDMs(me.name, targetName) });
   });
 
-  // ── PRIVATE CALL ────────────────────
-socket.on('privateCallAccept', ({ targetId }) => {
-  const caller = users[targetId];
-  const receiver = users[socket.id];
-  if(!caller || !receiver) return;
-  
-  // Privaten Raum erstellen
-  const privateRoom = `__private__${[caller.name, receiver.name].sort().join('__')}`;
-  
-  io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
-  socket.emit('privateCallAccepted', { fromId: targetId, privateRoom });
-});
+  // ── Private Call ──
+  socket.on('privateCall', ({ targetId }) => {
+    const caller = users[socket.id]; if (!caller) return;
+    io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
+  });
+
+  socket.on('privateCallAccept', ({ targetId }) => {
+    const caller = users[targetId], receiver = users[socket.id];
+    if (!caller || !receiver) return;
+    const privateRoom = `__private__${[socket.id, targetId].sort().join('_')}`;
+    io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
+    socket.emit('privateCallAccepted', { fromId: targetId, privateRoom });
+  });
+
   socket.on('privateCallReject', ({ targetId }) => {
     io.to(targetId).emit('privateCallRejected', { fromId: socket.id });
   });
 
-  //Disconect
-socket.on('disconnect', () => {
+  // ── Disconnect ──
+  socket.on('disconnect', () => {
     clearInterval(pingInterval);
     const u = users[socket.id];
     if (u) {
@@ -335,7 +313,6 @@ socket.on('disconnect', () => {
       }, 5000);
     }
   });
-
-}); // ← io.on('connection') schließen
+});
 
 server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));
