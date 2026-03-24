@@ -21,7 +21,10 @@
   --font:'Segoe UI',sans-serif;
   --sidebar-bg:var(--bg1);--header-bg:var(--bg3);--chat-input-bg:var(--bg4);
 }
+
 body{font-family:var(--font);background:var(--bg2);color:var(--text);display:flex;height:100vh;height:100dvh;overflow:hidden;font-size:14px}
+.btn-primary,.btn-acc,.btn-sec,.send-btn,.ib-btn,.icon-btn,.fmt-btn,.sb-btn,.ua-btn,.room-item,.voice-ch,.sec-lbl,.srv-hdr,#chName,#chHeader,#selfName,.msg-user,.msg-text,.u-name,.u-status{font-family:var(--font)!important;}
+
 @media(max-width:768px){
   #sidebar{position:fixed;left:-240px;top:0;bottom:0;z-index:100;transition:left .25s;box-shadow:4px 0 24px #000a}
   #sidebar.open{left:0}
@@ -360,7 +363,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     <button id="customAvClear" class="btn-sec" style="margin-left:6px;font-size:.82rem;padding:7px 10px">✕ Entfernen</button>
   </div>
 </div>
-    <div class="prof-lbl">Farbe</div><div class="prof-col-row" id="profColPick"></div>
+    <div class="prof-lbl">Avatar Farbe</div><div class="prof-col-row" id="profColPick"></div>
     <div class="prof-lbl">Name</div><input id="profNameIn" type="text" maxlength="24"/>
     <div class="prof-lbl">Status</div>
     <select id="profStatus">
@@ -453,9 +456,19 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     <div class="prof-lbl">Accent-Farbe – Schnellauswahl</div>
     <div class="acc-quickbar" id="accQuickBar"></div>
     <div class="color-picker-row">
+  
+    <div class="color-picker-row">
       <input type="color" id="accentCustomColor" title="Eigene Farbe">
       <span style="font-size:.82rem;color:var(--muted)">Eigene Accent-Farbe</span>
-      <button id="addAccQuickBtn" class="btn-acc" style="padding:5px 12px;font-size:.78rem">＋ Merken</button>
+      <button id="addAccQuickBtn" class="btn-acc" style="padding:5px 8px;font-size:.78rem">＋ Merken</button>
+    </div>
+    
+    <div class="color-picker-row" style="margin-top:-4px; padding-bottom:12px; border-bottom:1px solid var(--bg0)">
+      <input type="color" id="fmtBtnColor" value="#5865f2" style="width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;padding:0;background:none">
+      <span style="font-size:.82rem;color:var(--muted)">Spezielle Button-Farbe</span>
+      <button id="fmtBtnColorClear" class="btn-sec" style="padding:5px 10px;font-size:.78rem">Reset</button>
+    </div>
+    
     </div>
     <div class="prof-lbl" style="margin-top:4px">🎨 UI-Bereiche individualisieren</div>
     <div class="zone-grid">
@@ -479,38 +492,47 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
  <div class="prof-lbl">Chat-Hintergrund</div>
     <div class="bg-grid" id="bgGrid"></div>
 
-    <div class="prof-lbl">Schriftart</div>
-    <div class="font-grid" id="fontGrid"></div>
+    
 
     <div style="display:flex;gap:6px;margin-bottom:14px">
       <input id="bgUrlIn" type="text" placeholder="Bild-URL…" style="flex:1;padding:7px 10px;border-radius:6px;border:none;background:var(--bg4);color:var(--text);font-size:.82rem">
       <button id="bgUrlApply" class="btn-acc" style="padding:7px 12px;font-size:.82rem">OK</button>
       <label class="btn-sec" style="cursor:pointer;padding:7px 12px;font-size:.82rem;display:flex;align-items:center">📁<input type="file" id="bgFileIn" accept="image/*" style="display:none"></label>
     </div>
-    <div class="prof-lbl">✏️ Chat-Textformatierung</div>
+    
+    <div class="prof-lbl">Schriftart</div>
+    <div class="font-grid" id="fontGrid"></div>
+   <div class="prof-lbl">✏️ Chat-Textformatierung</div>
 <div style="background:var(--bg4);border-radius:10px;padding:14px;margin-bottom:14px">
+  
   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
     <button class="fmt-btn" id="fmtBold">𝐁 Fett</button>
     <button class="fmt-btn" id="fmtShadow">💭 Schatten</button>
     <button class="fmt-btn" id="fmtOutline">𝕆 Umrandung</button>
     <button class="fmt-btn" id="fmtReset" style="margin-left:auto;font-size:.72rem;background:var(--bg2)">↺ Reset</button>
   </div>
+  
   <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:.78rem;color:var(--muted)">Textfarbe</span>
       <input type="color" id="fmtColor" value="#ffffff" style="width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;padding:0;background:none">
       <button class="fmt-btn" id="fmtColorClear" style="font-size:.7rem;padding:3px 7px">✕</button>
     </div>
+    
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:.78rem;color:var(--muted)">Umrandungsfarbe</span>
       <input type="color" id="fmtOutlineColor" value="#000000" style="width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;padding:0;background:none">
+      <button class="fmt-btn" id="fmtOutlineColorClear" style="font-size:.7rem;padding:3px 7px">✕</button>
     </div>
-  </div>
- 
-  <div style="background:var(--bg2);border-radius:8px;padding:10px;font-size:.85rem" id="fmtPreview">
+    
+    
+  </div> <div style="background:var(--bg2);border-radius:8px;padding:10px;font-size:.85rem" id="fmtPreview">
     Vorschau Text 🎉
   </div>
 </div>
+
+
+
 <div class="prof-lbl">UI-Sounds</div>
 <div id="soundSettingsGrid"></div>
     <div class="mrow">
@@ -799,10 +821,13 @@ const BG_PRESETS=[
    {label:'Finn',   val:'https://www.bing.com/th/id/OGC.825e5917024820b2ec7ef417876280e0?o=7&pid=1.7&rm=3&rurl=https%3a%2f%2fmedia0.giphy.com%2fmedia%2fCLnmxQqmk6X16%2fgiphy.gif&ehk=3uKVPsD7qjvryr%2fFaahVNLtUqGsuDNN6FcBbJuACDPU%3d'},
   {label:'Cat meme',   val:'https://www.bing.com/th/id/OGC.e739a107c09286b4fb68a8f7a6303692?o=7&pid=1.7&rm=3&rurl=https%3a%2f%2fc.tenor.com%2fGbutACtJBTMAAAAd%2fcat.gif&ehk=nY4ljfSii8ZXgA9z%2fHHhvYeNfFUB%2bMrydVA0BCk8ato%3d'},
   {label:'simpson hahah',   val:'https://www.bing.com/th/id/OGC.7fa4bcee8eb3c582e317dbbf76c3abe6?o=7&pid=1.7&rm=3&rurl=https%3a%2f%2fmedia.tenor.co%2fimages%2f7fa4bcee8eb3c582e317dbbf76c3abe6%2ftenor.gif&ehk=F4l6jBcBN%2b08Kc8y0ppxBjWnx%2bTGvT7fFV3pA6tnT7w%3d'},
+  {label:'GTA APE',   val:'https://cdn0.vox-cdn.com/uploads/chorus_asset/file/3683060/gta_5_mod_chimp.0.gif'},
+  {label:'Custoall',   val:''}
 ];
 const UI_SOUND_DEFS=[
-  {key:'join',   label:'Lobby Beitritt'},
-  {key:'leave',  label:'Lobby Verlassen'},
+  {key:'ringtone', label:'Klingelton (Eingehender Anruf)'},
+  {key:'join',   label:'Chat Beitritt'},
+  {key:'leave',  label:'Chat Verlassen'},
   {key:'message',label:'Neue Nachricht'},
   {key:'dm',     label:'Neue DM'},
   {key:'vcJoin', label:'Voice Beitritt'},
@@ -829,7 +854,7 @@ let currentSound=null,soundVolume=1.0;
 try{const sv=localStorage.getItem('brotalk_soundvolume');if(sv!=null)soundVolume=parseFloat(sv);}catch{}
 
 // ── FORMAT STATE ──
-let fmtState={bold:false,shadow:false,outline:false,color:null,outlineColor:'#000000',font:''};
+let fmtState={bold:false,shadow:false,outline:false,color:null,outlineColor:'#000000',font:'',btnColor:null};
 try{const fs=localStorage.getItem('brotalk_fmt');if(fs)fmtState=JSON.parse(fs);}catch{}
 
 function buildFmtStyle(){
@@ -862,8 +887,24 @@ function initFmtModal(){
   const foc=document.getElementById('fmtOutlineColor');
   foc.value=fmtState.outlineColor||'#000000';
   foc.oninput=()=>{fmtState.outlineColor=foc.value;updateFmtPreview();};
-  document.getElementById('fmtColorClear').onclick=()=>{fmtState.color=null;fc.value='#ffffff';updateFmtPreview();};
+  const foc2=document.getElementById('fmtOutlineColorClear');
+  foc2.onclick=()=>{fmtState.outlineColor='#000000';document.getElementById('fmtOutlineColor').value='#000000';updateFmtPreview();};
+ 
+  const fbc = document.getElementById('fmtBtnColor');
+  fbc.value = fmtState.btnColor || '#5865f2';
   
+  fbc.oninput = () => {
+    fmtState.btnColor = fbc.value; 
+    applyBtnColor(); 
+    saveFmt(); // <-- WICHTIG: Speichert die Farbe sofort!
+  };
+  
+  document.getElementById('fmtBtnColorClear').onclick = () => {
+    fmtState.btnColor = null; 
+    fbc.value = '#5865f2'; 
+    applyBtnColor(); 
+    saveFmt(); // <-- WICHTIG: Speichert den Reset sofort!
+  };
  
   document.getElementById('fmtReset').onclick=()=>{
     fmtState={bold:false,shadow:false,outline:false,color:null,outlineColor:'#000000',font:''};
@@ -873,6 +914,7 @@ function initFmtModal(){
     updateFmtPreview();
   };
   updateFmtPreview();
+  applyBtnColor();
 }
 
 let gifSrc='giphy';
@@ -903,14 +945,16 @@ let micTestStream=null,micTestCtx=null,micTestAnim=null;
 let ngMonitorCtx=null,ngMonitorAnim=null,ngMonitorStream=null;
 let spPickerStream=null,spMode='screen';
 
-let appearance={
+  let appearance={
   accent:'#5865f2',font:"'Segoe UI',sans-serif",chatBg:'none',
   lightMode:false,soundPreset:'standard',customSounds:{},
+  soundVolumes:{},soundMutes:{},
   uiBg:null,quickAccents:['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c'],
   zones:{sidebar:null,srvhdr:null,header:null,chatinput:null}
 };
 try{const a=JSON.parse(localStorage.getItem('brotalk_appearance')||'{}');Object.assign(appearance,a);if(!appearance.quickAccents)appearance.quickAccents=['#5865f2','#23a55a','#f0b232','#f23f42','#e91e8c'];if(!appearance.zones)appearance.zones={};}catch{}
-
+if(!appearance.soundVolumes)appearance.soundVolumes={};
+if(!appearance.soundMutes)appearance.soundMutes={};
 const iceQueues={};
 function queueIce(pid,c){(iceQueues[pid]||(iceQueues[pid]=[])).push(c);}
 async function flushIce(pid){
@@ -919,6 +963,45 @@ async function flushIce(pid){
 }
 
 // ── APPEARANCE ──
+function applyBtnColor() {
+  if(!fmtState) return;
+  const c = fmtState.btnColor;
+  
+  // Dynamischen Style-Tag suchen oder erstellen
+  let styleEl = document.getElementById('custom-btn-style');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'custom-btn-style';
+    document.head.appendChild(styleEl);
+  }
+  
+  if (c) {
+    // Gegensätzliche Farbe zur weißen Schrift (#fff) ist Schwarz (#000).
+    // Beim Hover drehen wir Schrift- und Hintergrundfarbe einfach um!
+    styleEl.innerHTML = `
+      .btn-primary, .btn-acc, .send-btn, .fmt-btn.active, .room-item.active {
+        background-color: ${c} !important;
+        color: #ffffff !important;
+        transition: all 0.2s ease !important;
+      }
+      .btn-primary:hover, .btn-acc:hover, .send-btn:hover, .fmt-btn.active:hover, .room-item.active:hover {
+        background-color: #000000 !important;
+        color: ${c} !important;
+        box-shadow: 0 0 8px ${c} !important;
+      }
+    `;
+  } else {
+    // Wenn zurückgesetzt wurde, eigenes CSS wieder löschen
+    styleEl.innerHTML = '';
+  }
+
+}
+function applyFmtToUI(){
+  const s=buildFmtStyle();
+  if(!s)return;
+  const targets=document.querySelectorAll('.btn-primary,.btn-acc,.send-btn,.fmt-btn,.room-item,.voice-ch,.sec-lbl,.srv-hdr,#chName,#selfName,.msg-text');
+  targets.forEach(el=>el.setAttribute('style',(el.getAttribute('style')||'')+';'+s));
+}
 function applyAppearance(){
   const r=document.documentElement.style;
   r.setProperty('--accent',appearance.accent);
@@ -947,7 +1030,15 @@ function applyAppearance(){
   if(srvhdr)srvhdr.style.background=z.srvhdr||'';
   if(header)header.style.background=z.header||'';
   if(inputBar)inputBar.style.background=z.chatinput||'';
+  // fmtStyle auf eigene Nachrichten anwenden
+  const fmtStyle=buildFmtStyle();
+  document.querySelectorAll('.msg-row .msg-text').forEach(el=>{
+    if(el.closest('.msg-row')?.querySelector('.msg-user')?.style.color===myColor){
+      el.setAttribute('style',fmtStyle);
+    }
+  });
 }
+
 function darken(hex,pct){
   let n=parseInt(hex.slice(1),16)||0;
   let rv=Math.max(0,(n>>16)-pct),gv=Math.max(0,((n>>8)&0xff)-pct),bv=Math.max(0,(n&0xff)-pct);
@@ -963,13 +1054,20 @@ function resetZone(zone){
 applyAppearance();
 
 function playUISound(name){
-  const preset=appearance.soundPreset;if(preset==='off')return;
-  if(appearance.customSounds?.[name]){try{const a=new Audio(appearance.customSounds[name]);a.volume=.5;a.play().catch(()=>{});}catch{}return;}
+  if(appearance.soundMutes?.[name])return;
+  const vol=(appearance.soundVolumes?.[name]??0.5);
+  if(appearance.customSounds?.[name]){
+    try{const a=new Audio(appearance.customSounds[name]);a.volume=vol;a.play().catch(()=>{});}catch{}
+    return;
+  }
+  const preset=appearance.soundPreset||'standard';
+  if(preset==='off')return;
   const cfg=SOUND_PRESETS[preset]?.[name];if(!cfg)return;
   try{
     const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();
     o.type=cfg.type;o.frequency.value=cfg.freq;
-    g.gain.setValueAtTime(cfg.vol,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+cfg.dur+.05);
+    const v=cfg.vol*(vol*2);
+    g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+cfg.dur+.05);
     o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+cfg.dur+.06);
   }catch{}
 }
@@ -1004,6 +1102,12 @@ function playUISound(name){
   });
   buildAppearModal();
   renderVoiceList();
+  document.getElementById('openAppearBtn').onclick=()=>{
+    document.getElementById('profileModal').classList.remove('on');
+    buildAppearModal();
+    document.getElementById('appearModal').classList.add('on');
+    initFmtModal();
+  };
   initDmDrag();
   setInterval(()=>{
   Object.entries(peerConns).forEach(([pid,pc])=>{
@@ -1034,6 +1138,13 @@ document.getElementById('nsCheckBtn').onclick=()=>{nsEnabled=!nsEnabled;nsMode=n
     document.querySelectorAll('.col-dot').forEach(d=>d.classList.toggle('selected',d.dataset.col===myColor));
     setTimeout(()=>doJoin(),300);
   }
+   document.getElementById('openAppearBtn').onclick=()=>{
+    document.getElementById('profileModal').classList.remove('on');
+    buildAppearModal();
+    document.getElementById('appearModal').classList.add('on');
+    initFmtModal();
+  };
+ 
 })();
 
 
@@ -1146,43 +1257,60 @@ function addAccQuickDot(c,container){
   d.oncontextmenu=e=>{e.preventDefault();if(confirm(`Farbe ${c} entfernen?`)){appearance.quickAccents=appearance.quickAccents.filter(x=>x!==c);d.remove();}};
   container.appendChild(d);
 }
+
+
 function buildSoundSettings(){
   const g=document.getElementById('soundSettingsGrid');g.innerHTML='';
-  const pr=mk('div');pr.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px';
-  pr.innerHTML='<span style="flex:1;font-size:.85rem;color:var(--text)">Sound-Preset</span>';
-  const sel=mk('select');sel.style.cssText='flex:0 0 auto;width:140px;padding:5px 8px;border-radius:6px;border:none;background:var(--bg4);color:var(--text);font-size:.82rem';
-  ['standard','soft','discord','off'].forEach(k=>{const o=mk('option');o.value=k;o.textContent={standard:'Standard',soft:'Sanft',discord:'Discord',off:'Aus'}[k];sel.appendChild(o);});
-  sel.value=appearance.soundPreset;pr.appendChild(sel);g.appendChild(pr);
+  // Komplett Mute Button
+  const muteRow=mk('div');muteRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;background:var(--bg4);padding:10px 12px;border-radius:8px';
+  const allMuted=Object.values(appearance.soundMutes||{}).every(v=>v)&&UI_SOUND_DEFS.every(d=>appearance.soundMutes?.[d.key]);
+  muteRow.innerHTML=`<span style="font-size:.88rem;font-weight:700"> Alle UI-Sounds stummen?</span>`;
+  const muteAll=mk('button','fmt-btn');muteAll.textContent=allMuted?'🔇 Sound Aus':'🔊 Sound An';
+  muteAll.style.cssText='padding:5px 14px;font-size:.82rem';
+  muteAll.onclick=()=>{
+    const nowMute=!allMuted;
+    UI_SOUND_DEFS.forEach(d=>{appearance.soundMutes[d.key]=nowMute;});
+    buildSoundSettings();
+  };
+  muteRow.appendChild(muteAll);g.appendChild(muteRow);
+  // Pro Sound
   UI_SOUND_DEFS.forEach(({key,label})=>{
-    const row=mk('div','sound-row');row.innerHTML=`<span>${label}</span>`;
-    const hasCustm=!!appearance.customSounds?.[key];
-    const ub=mk('button','upload-s');ub.textContent=hasCustm?'✅ Custom':'📂 Eigener Sound';
-    ub.onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='audio/*';inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{if(!appearance.customSounds)appearance.customSounds={};appearance.customSounds[key]=ev.target.result;ub.textContent='✅ Custom';};r.readAsDataURL(f);};inp.click();};
-    const clr=mk('button','upload-s');clr.textContent='✕';clr.style.opacity=hasCustm?'1':'0.3';
-    clr.onclick=()=>{if(appearance.customSounds)delete appearance.customSounds[key];ub.textContent='📂 Eigener Sound';clr.style.opacity='0.3';};
-    row.appendChild(ub);row.appendChild(clr);g.appendChild(row);
+    const row=mk('div');row.style.cssText='background:var(--bg4);border-radius:6px;padding:6px 10px;margin-bottom:5px';
+const top=mk('div');top.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:5px';
+    const muted=appearance.soundMutes?.[key]||false;
+    const vol=appearance.soundVolumes?.[key]??0.5;
+    top.innerHTML=`<span style="flex:1;font-size:.85rem;font-weight:600">${label}</span>`;
+    // Mute Toggle
+    const mb=mk('button','fmt-btn');mb.textContent=muted?'🔇':'🔊';mb.style.padding='4px 10px';
+    mb.onclick=()=>{
+      if(!appearance.soundMutes)appearance.soundMutes={};
+      appearance.soundMutes[key]=!muted;
+      buildSoundSettings();
+    };
+    // Custom Sound
+    const ub=mk('button','upload-s');ub.textContent=appearance.customSounds?.[key]?'✅ Custom':'📂 Sound';ub.style.fontSize='.75rem';
+    ub.onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='audio/*';inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{if(!appearance.customSounds)appearance.customSounds={};appearance.customSounds[key]=ev.target.result;buildSoundSettings();};r.readAsDataURL(f);};inp.click();};
+    const clr=mk('button','upload-s');clr.textContent='✕';clr.style.cssText='font-size:.75rem;opacity:'+(appearance.customSounds?.[key]?'1':'0.3');
+    clr.onclick=()=>{if(appearance.customSounds)delete appearance.customSounds[key];buildSoundSettings();};
+    top.append(mb,ub,clr);row.appendChild(top);
+    // Lautstärke Slider
+    const slRow=mk('div');slRow.style.cssText='display:flex;align-items:center;gap:8px';
+    slRow.innerHTML=`<span style="font-size:.72rem;color:var(--muted);min-width:60px">Lautstärke</span>`;
+    const sl=document.createElement('input');sl.type='range';sl.min=0;sl.max=100;sl.value=Math.round(vol*100);
+    sl.style.cssText='flex:1;accent-color:var(--accent);height:4px;padding:0;margin:0;box-sizing:border-box';
+    const vl=mk('span');vl.style.cssText='font-size:.72rem;color:var(--muted);min-width:34px';vl.textContent=Math.round(vol*100)+'%';
+    sl.oninput=()=>{
+      if(!appearance.soundVolumes)appearance.soundVolumes={};
+      appearance.soundVolumes[key]=sl.value/100;
+      vl.textContent=sl.value+'%';
+    };
+    // Test Button
+    const tb=mk('button','fmt-btn');tb.textContent='▶';tb.style.padding='3px 8px';
+    tb.onclick=()=>playUISound(key);
+    slRow.append(sl,vl,tb);row.appendChild(slRow);
+    g.appendChild(row);
   });
-  g._selRef=sel;
 }
-document.getElementById('openAppearBtn').onclick=()=>{
-  document.getElementById('profileModal').classList.remove('on');
-  buildAppearModal();
-  document.getElementById('appearModal').classList.add('on');
-  initFmtModal();
-};
-document.getElementById('closeAppear').onclick=()=>document.getElementById('appearModal').classList.remove('on');
-document.getElementById('saveAppear').onclick=()=>{saveFmt();
-  const fg=document.getElementById('fontGrid');
-  appearance.font=fg.querySelector('.font-btn.selected')?.dataset.val||appearance.font;
-  const bg=document.getElementById('bgGrid');
-  const selBg=bg.querySelector('.bg-opt.selected')?.dataset.val;
-  if(selBg&&selBg!=='custom')appearance.chatBg=selBg==='none'?'none':selBg;
-  appearance.lightMode=document.getElementById('lightModeToggle').checked;
-  const sg=document.getElementById('soundSettingsGrid');
-  appearance.soundPreset=sg._selRef?.value||appearance.soundPreset;
-  localStorage.setItem('brotalk_appearance',JSON.stringify(appearance));
-  applyAppearance();document.getElementById('appearModal').classList.remove('on');
-};
 
 // ── CLIPBOARD ──
 function initClipboard(){
@@ -1282,12 +1410,13 @@ function doJoin(){
   });
 
   socket.on('connect',()=>{myId=socket.id;socket.emit('join',{name,room,color:myColor,avatar:myAvatar});});
-  socket.on('joined',({name:n,room:r})=>{
+ socket.on('joined',({name:n,room:r})=>{
   myRoom=r;updateSelfBar();
   document.getElementById('chName').textContent=r;
   document.getElementById('loginOverlay').style.display='none';
   setInputsLocked(false);
-  document.getElementById('msgInput').focus();
+  setTimeout(()=>document.getElementById('msgInput').focus(),150);
+  setTimeout(()=>applyBtnColor(),300);
 });
 
   socket.on('history',msgs=>{document.getElementById('chatArea').innerHTML='';msgs.forEach(m=>renderMsg(m));scrollChat();});
@@ -1391,21 +1520,24 @@ socket.on('voicePasswordWrong',()=>{
 }); 
 
 }
-
 function updateSelfBar(){
   const av=document.getElementById('selfAv');
-  if(customAvatar){
+  const src=customAvatar&&customAvatar.startsWith('data:')?customAvatar:null;
+ 
+if(src){
     av.textContent='';
     av.style.background=myColor+'66';
-    av.style.backgroundImage=`url('${customAvatar}')`;
+    av.style.backgroundImage=`url("${src}")`;
     av.style.backgroundSize='cover';
     av.style.backgroundPosition='center';
     av.style.backgroundRepeat='no-repeat';
-    // Kein onerror nötig da base64
+    av.style.width='32px';
+    av.style.height='32px';
+    av.style.borderRadius='50%';
+
   }else{
     av.textContent=myAvatar;
-    av.style.background=myColor+'66';
-    av.style.backgroundImage='none';
+    av.style.cssText=`background:${myColor}66;background-image:none;width:32px;height:32px;border-radius:50%`;
   }
   document.getElementById('selfName').textContent=myName;
 document.getElementById('selfName').style.color=myColor;
@@ -1492,12 +1624,11 @@ function renderMsg(m,scroll=false){
     let body='';
     if(m.type==='image')body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none'">`;
     else if(m.type==='file')body=`<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName||'Datei')}">📎 ${esc(m.fileName||'Datei')}</a>`;
-    else if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>`;
-  else if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>`;
-else body=`<span class="msg-text">${linkify(esc(txt))}</span>`;
+   else if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>`;
+else body=`<span class="msg-text" style="${m.userId===myId?buildFmtStyle():''}">${linkify(esc(txt))}</span>`;
     const d=mk('div','msg-row');d.dataset.id=m.id;
-const isCustomAv=m.avatar&&m.avatar.startsWith('data:');
-const avStyle=isCustomAv?`background:${m.color||'#5865f2'}66;background-image:url('${m.avatar}');background-size:cover;background-position:center`:`background:${m.color||'#5865f2'}66`;
+const isCustomAv=m.avatar&&typeof m.avatar==='string'&&m.avatar.startsWith('data:');
+const avStyle=isCustomAv?`background:${m.color||'#5865f2'}66;background-image:url('${m.avatar}');background-size:cover;background-position:center;background-repeat:no-repeat`:`background:${m.color||'#5865f2'}66`;
 const avContent=isCustomAv?'':esc(m.avatar||m.user?.[0]?.toUpperCase()||'?');
 d.innerHTML=`<div class="avatar" style="${avStyle}">${avContent}</div>
 
@@ -1599,13 +1730,23 @@ function renderUserList(users){
     const pc=peerConns[u.id],unread=dmUnread[u.id]||0;
     const wrap=mk('div');wrap.style.cssText='padding:2px 8px';
     const row=mk('div','user-item');row.style.cssText='border-radius:4px;padding:5px 4px';
-    row.innerHTML=`<div class="avatar" style="background:${u.color||'#5865f2'}66">${esc(u.avatar||u.name[0].toUpperCase())}</div>
-      <div class="u-info"><div class="u-name" style="color:${u.color||'var(--text)'}">${esc(u.name)}</div><div class="u-status">${sl}${u.inVoice?' 🔊':''}</div></div>
+  const uIsCustom=u.avatar&&typeof u.avatar==='string'&&u.avatar.startsWith('data:');
+const uAvContent=uIsCustom?'':esc(u.avatar||u.name[0].toUpperCase());
+row.innerHTML=`<div class="avatar" style="background:${u.color||'#5865f2'}66">${uAvContent}</div>
+ 
+    <div class="u-info"><div class="u-name" style="color:${u.color||'var(--text)'}">${esc(u.name)}</div><div class="u-status">${sl}${u.inVoice?' 🔊':''}</div></div>
       ${unread?`<span class="dm-badge">${unread}</span>`:''}
       <div class="u-actions">
         <button class="ua-btn" data-dm="${u.id}" title="DM">💬</button>
         <button class="ua-btn" data-call="${u.id}" title="Anrufen">📞</button>
-      </div>`;
+      </div>`; 
+  if(uIsCustom){
+  const avEl=row.querySelector('.avatar');
+  avEl.style.backgroundImage=`url("${u.avatar}")`;
+  avEl.style.backgroundSize='cover';
+  avEl.style.backgroundPosition='center';
+  avEl.style.backgroundRepeat='no-repeat';
+}
     row.querySelector('[data-dm]').onclick=e=>{e.stopPropagation();openDM(u);};
     row.querySelector('[data-call]').onclick=e=>{e.stopPropagation();startPrivateCall(u);};
     wrap.appendChild(row);
@@ -1862,7 +2003,7 @@ async function startJoinVoice(roomName){
   }catch(e){alert('Mikrofon: '+e.message);return;}
   currentVoiceRoom=roomName;
   socket.emit('joinVoice',{room:roomName});
-  document.getElementById('callLabel').textContent='🔊 '+roomName;
+  document.getElementById('callLabel').textContent=roomName.startsWith('__private__')||roomName.startsWith('private_')?`📞 Privater Anruf`:('🔊 '+roomName);
   document.getElementById('callBar').classList.add('on');
   renderVoiceList();
 }
@@ -2490,13 +2631,31 @@ function renderSoundboard(){
     wrap.append(b,del);g.appendChild(wrap);
   });
 }
-
+function playBase64(data){
+  if(!data)return null;
+  const a=new Audio();a.src=data;a.volume=soundVolume;
+  const p=a.play();
+  if(p&&p.catch)p.catch(()=>{document.addEventListener('click',()=>a.play().catch(()=>{}),{once:true});});
+  return a;
+}
 function showSoundToast(msg){const t=document.getElementById('soundToast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);}
 
 // ── DM ──
 function openDM(user){
   dmTarget=user;dmUnread[user.id]=0;
-  const av=document.getElementById('dmAv');av.textContent=user.avatar||user.name[0].toUpperCase();av.style.background=(user.color||'#5865f2')+'66';
+  const av=document.getElementById('dmAv');
+const dmIsCustom=user.avatar&&typeof user.avatar==='string'&&user.avatar.startsWith('data:');
+av.style.background=(user.color||'#5865f2')+'66';
+if(dmIsCustom){
+  av.textContent='';
+  av.style.backgroundImage='url("'+user.avatar+'")';
+  av.style.backgroundSize='cover';
+  av.style.backgroundPosition='center';
+  av.style.backgroundRepeat='no-repeat';
+}else{
+  av.textContent=user.avatar||user.name[0].toUpperCase();
+  av.style.backgroundImage='none';
+}
   document.getElementById('dmTitleName').textContent=user.name;
   document.getElementById('dmMsgs').innerHTML='<div class="dm-loading">💬 Lade Verlauf…</div>';
   document.getElementById('dmWindow').classList.add('on');
@@ -2534,28 +2693,91 @@ function onDmMsg(msg){
 }
 
 function startPrivateCall(user){
+  if(!socket)return;
   socket.emit('privateCall',{targetId:user.id});
-  // Warten auf privateCallAccepted vom Server – der schickt den Raumnamen
+  sysLocal(`📞 Rufe ${user.name} an…`);
 }
+
+let ringtoneAudio=null;
+function stopRingtone(){
+  if(ringtoneAudio){ringtoneAudio.pause();ringtoneAudio.currentTime=0;ringtoneAudio=null;}
+}
+function playRingtone(){
+  stopRingtone();
+  const custom=appearance.customSounds?.ringtone;
+  const src=custom||`${BASE}assets/sounds/ringtone.mp3`;
+  ringtoneAudio=new Audio(src);
+  ringtoneAudio.loop=true;
+  ringtoneAudio.volume=0.7;
+  ringtoneAudio.play().catch(()=>{
+    // Fallback: generierter Ton
+    function beep(){
+      try{
+        const ctx=new AudioContext();
+        const o=ctx.createOscillator();const g=ctx.createGain();
+        o.type='sine';o.frequency.value=880;
+        g.gain.setValueAtTime(0.4,ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+        o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.4);
+        setTimeout(()=>{
+          const o2=ctx.createOscillator();const g2=ctx.createGain();
+          o2.type='sine';o2.frequency.value=660;
+          g2.gain.setValueAtTime(0.4,ctx.currentTime);
+          g2.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+          o2.connect(g2);g2.connect(ctx.destination);o2.start();o2.stop(ctx.currentTime+0.4);
+        },500);
+      }catch{}
+    }
+    beep();
+    ringtoneAudio={_interval:setInterval(beep,1200),pause:function(){clearInterval(this._interval);},currentTime:0};
+  });
+}
+
 function onCallIncoming({fromId,fromName}){
   pendingCallFrom=fromId;
   document.getElementById('toastName').textContent=`📞 ${fromName} ruft an`;
   document.getElementById('callToast').classList.add('on');
-  setTimeout(()=>{document.getElementById('callToast').classList.remove('on');pendingCallFrom=null;},20000);
+  playRingtone();
+  setTimeout(()=>{
+    document.getElementById('callToast').classList.remove('on');
+    pendingCallFrom=null;
+    stopRingtone();
+  },20000);
 }
+
 document.getElementById('toastAcc').onclick=()=>{
   document.getElementById('callToast').classList.remove('on');
+  stopRingtone();
   if(!pendingCallFrom)return;
   socket.emit('privateCallAccept',{targetId:pendingCallFrom});
   pendingCallFrom=null;
-  // joinVoice kommt automatisch via privateCallAccepted Event
 };
-document.getElementById('toastRej').onclick=()=>{document.getElementById('callToast').classList.remove('on');if(!pendingCallFrom)return;socket.emit('privateCallReject',{targetId:pendingCallFrom});pendingCallFrom=null;};
+document.getElementById('toastRej').onclick=()=>{
+  document.getElementById('callToast').classList.remove('on');
+  stopRingtone();
+  if(!pendingCallFrom)return;
+  socket.emit('privateCallReject',{targetId:pendingCallFrom});
+  pendingCallFrom=null;
+};
 
 // ── AUDIO SETTINGS MODAL ──
 document.getElementById('openAudioBtn').onclick=()=>{document.getElementById('profileModal').classList.remove('on');openAudioModal();};
 document.getElementById('closeAudio').onclick=()=>{stopMicTest();stopNgMonitor();document.getElementById('audioModal').classList.remove('on');};
 document.getElementById('saveAudio').onclick=saveAudioSettings;
+document.getElementById('closeAppear').onclick=()=>document.getElementById('appearModal').classList.remove('on');
+document.getElementById('saveAppear').onclick=()=>{
+  const fg=document.getElementById('fontGrid');
+  appearance.font=fg.querySelector('.font-btn.selected')?.dataset.val||appearance.font;
+  const bg=document.getElementById('bgGrid');
+  const selBg=bg.querySelector('.bg-opt.selected')?.dataset.val;
+  if(selBg&&selBg!=='custom')appearance.chatBg=selBg==='none'?'none':selBg;
+  appearance.lightMode=document.getElementById('lightModeToggle').checked;
+  saveFmt();
+  localStorage.setItem('brotalk_appearance',JSON.stringify(appearance));
+  applyAppearance();
+  document.getElementById('appearModal').classList.remove('on');
+  applyFmtToUI();
+};
 
 async function openAudioModal(){
   await populateDevices();

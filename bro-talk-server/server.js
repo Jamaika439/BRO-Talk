@@ -4,7 +4,12 @@ const { Server } = require('socket.io');
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
-const bcrypt   = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
+
+function sanitize(str, maxLen=100){
+  if(typeof str !== 'string') return '';
+  return str.trim().slice(0, maxLen).replace(/[<>]/g, '');
+}
 
 const PORT       = process.env.PORT || 3000;
 const dataDir    = path.join(__dirname, 'data');
@@ -13,18 +18,13 @@ const dbFile     = path.join(dataDir, 'db.json');
 
 [dataDir, uploadsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
-// ── DB ────────────────────────────────────────────────────────
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbFile, 'utf8')); }
-  catch {
-    return {
-      messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'],
-      roomPasswords: {}, profiles: {}, dms: {},
-      voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'], voicePasswords: {}
-    };
-  }
+  catch { return { messages: {}, rooms: ['Allgemein', 'Gaming', 'Musik'], roomPasswords: {}, profiles: {}, dms: {}, voiceChannels: ['Lounge', 'Gaming VC', 'Musik VC'], voicePasswords: {} }; }
 }
-function saveDB(db) { fs.writeFileSync(dbFile, JSON.stringify(db, null, 2)); }
+function saveDB(db) {
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+}
 
 let db = loadDB();
 if (!db.dms)            { db.dms = {};            saveDB(db); }
@@ -38,60 +38,67 @@ function addMessage(room, msg) {
   if (db.messages[room].length > 200) db.messages[room] = db.messages[room].slice(-200);
   saveDB(db);
 }
-function getMessages(room) { return (db.messages[room] || []).slice(-80); }
-function dmKey(a, b)       { return [a, b].sort().join('__DM__'); }
-function addDM(a, b, msg)  {
-  const k = dmKey(a, b);
-  if (!db.dms[k]) db.dms[k] = [];
-  db.dms[k].push(msg);
-  if (db.dms[k].length > 200) db.dms[k] = db.dms[k].slice(-200);
+function getMessages(room) {
+  return (db.messages[room] || []).slice(-80);
+}
+function dmKey(nameA, nameB) { return [nameA, nameB].sort().join('__DM__'); }
+function addDM(nameA, nameB, msg) {
+  const key = dmKey(nameA, nameB);
+  if (!db.dms[key]) db.dms[key] = [];
+  db.dms[key].push(msg);
+  if (db.dms[key].length > 200) db.dms[key] = db.dms[key].slice(-200);
   saveDB(db);
 }
-function getDMs(a, b) { return (db.dms[dmKey(a, b)] || []).slice(-100); }
+function getDMs(nameA, nameB) { return (db.dms[dmKey(nameA, nameB)] || []).slice(-100); }
 
-// ── Multer ────────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: uploadsDir,
-  filename: (_, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
+  filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-// ── Express ───────────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
-const io     = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6, pingTimeout: 60000, pingInterval: 25000 });
-
-app.use('/uploads', express.static(uploadsDir));
-app.use('/assets',  express.static(path.join(__dirname, 'assets')));
-app.use(express.json({ limit: '1mb' }));
-app.get('/',              (_, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
-app.get('/rooms',         (_, res) => res.json(db.rooms));
-app.get('/dm-history',    (req, res) => {
-  const { a, b } = req.query;
-  if (!a || !b) return res.status(400).json({ error: 'Missing names' });
-  res.json(getDMs(a, b));
+const io = new Server(server, {
+  cors: { origin: '*' },
+  maxHttpBufferSize: 25e6,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
-app.post('/upload', upload.single('file'), (req, res) => {
+
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: 'Zu viele Anfragen, bitte warte kurz.' });
+const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
+app.use(limiter);
+app.use('/uploads', express.static(uploadsDir));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+app.use(express.json());
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const host = process.env.APP_URL || `http://localhost:${PORT}`;
   res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
 });
+app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
+app.get('/rooms', (req, res) => res.json(db.rooms));
+app.get('/dm-history', (req, res) => {
+  const { a, b } = req.query;
+  if (!a || !b) return res.status(400).json({ error: 'Missing names' });
+  res.json(getDMs(a, b));
+});
 
-// ── Helpers ───────────────────────────────────────────────────
 const users = {}, voiceRooms = {};
 function ts() { return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
 function broadcastUsers() { io.emit('userList', Object.entries(users).map(([id, u]) => ({ id, ...u }))); }
 function broadcastRooms() { io.emit('roomList', db.rooms); }
 function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() }); }
 
-// ── Socket.IO ─────────────────────────────────────────────────
 io.on('connection', socket => {
   const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10000);
   socket.on('pong_check', t => socket.emit('ping_result', Date.now() - t));
 
-  // ── Join ──
   socket.on('join', ({ name, room = 'Allgemein', color = '#5865f2', avatar = '😎' }) => {
+    name = sanitize(name, 24);
+    room = sanitize(room, 32);
     if (!name) return;
     users[socket.id] = { name, room, color, avatar, status: 'online', inVoice: false };
     if (!db.rooms.includes(room)) { db.rooms.push(room); saveDB(db); }
@@ -104,31 +111,37 @@ io.on('connection', socket => {
     sysMsg(room, `${name} ist beigetreten.`);
   });
 
-  // ── Profil ──
   socket.on('updateProfile', ({ name, color, avatar }) => {
     const u = users[socket.id]; if (!u) return;
     if (name)   u.name   = name;
     if (color)  u.color  = color;
-    if (avatar) u.avatar = typeof avatar === 'string' ? avatar.slice(0, 500000) : avatar;
+    if (avatar) u.avatar = typeof avatar === 'string' ? avatar.slice(0, 200000) : avatar;
     broadcastUsers();
     socket.emit('profileUpdated', { name: u.name, color: u.color, avatar: u.avatar });
   });
-
   socket.on('setStatus', status => {
-    const allowed = ['online', 'away', 'dnd', 'offline'];
-    if (users[socket.id] && allowed.includes(status)) { users[socket.id].status = status; broadcastUsers(); }
+    if (users[socket.id]) { users[socket.id].status = status; broadcastUsers(); }
   });
 
-  // ── Rooms ──
+  // ── ROOM PASSWORD CHECK ──
   socket.on('checkRoomPassword', ({ room }) => {
-    db.roomPasswords[room] ? socket.emit('roomNeedsPassword', { room }) : socket.emit('roomNoPassword', { room });
+    room = sanitize(room, 32);
+    if (db.roomPasswords[room]) {
+      socket.emit('roomNeedsPassword', { room });
+    } else {
+      socket.emit('roomNoPassword', { room });
+    }
   });
 
-  socket.on('changeRoom', async ({ newRoom, password }) => {
+  // ── CHANGE ROOM (with optional password) ──
+  socket.on('changeRoom', ({ newRoom, password }) => {
     const u = users[socket.id]; if (!u) return;
+    newRoom = sanitize(newRoom, 32);
+    // Passwort prüfen falls gesetzt
     if (db.roomPasswords[newRoom]) {
-      if (!password || !(await bcrypt.compare(password, db.roomPasswords[newRoom]))) {
-        socket.emit('roomPasswordWrong'); return;
+      if (!password || db.roomPasswords[newRoom] !== password) {
+        socket.emit('roomPasswordWrong');
+        return;
       }
     }
     sysMsg(u.room, `${u.name} hat den Raum verlassen.`);
@@ -141,11 +154,13 @@ io.on('connection', socket => {
     sysMsg(newRoom, `${u.name} ist beigetreten.`);
   });
 
-  socket.on('createRoom', async ({ name, password }) => {
+  socket.on('createRoom', ({ name, password }) => {
+    name = sanitize(name, 32);
     if (!name || db.rooms.includes(name)) return;
     db.rooms.push(name);
-    if (password) db.roomPasswords[name] = await bcrypt.hash(password, 10);
-    saveDB(db); broadcastRooms();
+    if (password) db.roomPasswords[name] = sanitize(password, 32);
+    saveDB(db);
+    broadcastRooms();
   });
 
   socket.on('deleteRoom', ({ name }) => {
@@ -153,26 +168,37 @@ io.on('connection', socket => {
     db.rooms = db.rooms.filter(r => r !== name);
     delete db.messages[name];
     delete db.roomPasswords[name];
-    saveDB(db); broadcastRooms();
+    saveDB(db);
+    broadcastRooms();
     io.emit('roomDeleted', { name });
   });
 
-  // ── Voice Channels ──
+  // ── VOICE CHANNEL PASSWORD CHECK ──
   socket.on('checkVoicePassword', ({ room }) => {
-    db.voicePasswords[room] ? socket.emit('voiceNeedsPassword', { room }) : socket.emit('voiceNoPassword', { room });
+    room = sanitize(room, 32);
+    if (db.voicePasswords[room]) {
+      socket.emit('voiceNeedsPassword', { room });
+    } else {
+      socket.emit('voiceNoPassword', { room });
+    }
   });
 
-  socket.on('joinVoiceWithPassword', async ({ room, password }) => {
-    if (db.voicePasswords[room] && !(await bcrypt.compare(password || '', db.voicePasswords[room]))) {
-      socket.emit('voicePasswordWrong'); return;
+  // ── JOIN VOICE WITH PASSWORD ──
+  socket.on('joinVoiceWithPassword', ({ room, password }) => {
+    room = sanitize(room, 32);
+    password = sanitize(password, 32);
+    if (db.voicePasswords[room] && db.voicePasswords[room] !== password) {
+      socket.emit('voicePasswordWrong');
+      return;
     }
     socket.emit('voicePasswordOk', { room });
   });
 
-  socket.on('createVoiceChannel', async ({ name, password }) => {
+  socket.on('createVoiceChannel', ({ name, password }) => {
+    name = sanitize(name, 32);
     if (!name || db.voiceChannels.includes(name)) return;
     db.voiceChannels.push(name);
-    if (password) db.voicePasswords[name] = await bcrypt.hash(password, 10);
+    if (password) db.voicePasswords[name] = sanitize(password, 32);
     saveDB(db);
     io.emit('voiceChannelList', db.voiceChannels);
   });
@@ -209,19 +235,21 @@ io.on('connection', socket => {
     broadcastUsers();
   });
 
-  // ── Messages ──
+  
   socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
+  
+    text = sanitize(text, 2000);
+room = sanitize(room, 32);
+fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
     const u = users[socket.id]; if (!u) return;
-    // fmtStyle als String durchlassen ohne sanitize
-    fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
     const allowedTypes = ['text', 'image', 'file', 'formatted'];
-    if (!allowedTypes.includes(type)) return;
+if (!allowedTypes.includes(type)) return;
     const msg = {
-      id: Date.now(), user: u.name, userId: socket.id,
-      color: u.color, avatar: u.avatar,
-      type, content: type === 'file' || type === 'image' ? fileUrl : text,
-      fileName: fileName || null, fmtStyle: fmtStyle, timestamp: ts()
-    };
+  id: Date.now(), user: u.name, userId: socket.id,
+  color: u.color, avatar: u.avatar,
+  type, content: type === 'file' || type === 'image' ? fileUrl : text,
+  fileName: fileName || null, fmtStyle: fmtStyle||null, timestamp: ts()
+};
     addMessage(room, msg);
     io.to(room).emit('message', msg);
   });
@@ -244,7 +272,6 @@ io.on('connection', socket => {
     io.to(room).emit('chatCleared', { room });
   });
 
-  // ── WebRTC ──
   socket.on('rtc-offer',  ({ targetId, offer })     => io.to(targetId).emit('rtc-offer',  { fromId: socket.id, fromName: users[socket.id]?.name, offer }));
   socket.on('rtc-answer', ({ targetId, answer })    => io.to(targetId).emit('rtc-answer', { fromId: socket.id, answer }));
   socket.on('rtc-ice',    ({ targetId, candidate }) => io.to(targetId).emit('rtc-ice',    { fromId: socket.id, candidate }));
@@ -253,19 +280,16 @@ io.on('connection', socket => {
     if (users[socket.id]) { users[socket.id].inVoice = false; broadcastUsers(); }
   });
 
-  // ── Sounds ──
   socket.on('playSound', ({ room, soundName, soundData }) => {
     socket.to(room).emit('playSound', { soundName, soundData, fromName: users[socket.id]?.name });
   });
   socket.on('stopSound', ({ room }) => socket.to(room).emit('stopSound'));
 
-  // ── Typing ──
   socket.on('typing', ({ room }) => {
     const u = users[socket.id];
     if (u) socket.to(room).emit('typing', { name: u.name });
   });
 
-  // ── DMs ──
   socket.on('privateMessage', ({ targetId, text }) => {
     const sender = users[socket.id], receiver = users[targetId];
     if (!sender) return;
@@ -280,39 +304,31 @@ io.on('connection', socket => {
     socket.emit('dmHistory', { targetName, messages: getDMs(me.name, targetName) });
   });
 
-  // ── Private Call ──
   socket.on('privateCall', ({ targetId }) => {
     const caller = users[socket.id]; if (!caller) return;
     io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
   });
-
   socket.on('privateCallAccept', ({ targetId }) => {
-    const caller = users[targetId], receiver = users[socket.id];
-    if (!caller || !receiver) return;
-    const privateRoom = `__private__${[socket.id, targetId].sort().join('_')}`;
-    io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
-    socket.emit('privateCallAccepted', { fromId: targetId, privateRoom });
-  });
+  const callerName=users[socket.id]?.name||'?';
+const receiverName=users[targetId]?.name||'?';
+const privateRoom = `📞 ${callerName} & ${receiverName}`;
+  io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
+  io.to(socket.id).emit('privateCallAccepted', { fromId: targetId, privateRoom });
+});
 
-  socket.on('privateCallReject', ({ targetId }) => {
-    io.to(targetId).emit('privateCallRejected', { fromId: socket.id });
-  });
-
-  // ── Disconnect ──
   socket.on('disconnect', () => {
     clearInterval(pingInterval);
     const u = users[socket.id];
     if (u) {
-      setTimeout(() => {
-        if (!users[socket.id]) return;
-        sysMsg(u.room, `${u.name} hat die App verlassen.`);
-        Object.values(voiceRooms).forEach(s => s.delete(socket.id));
-        io.emit('voicePeerLeft', { peerId: socket.id });
-        delete users[socket.id];
-        broadcastUsers();
-      }, 5000);
+      sysMsg(u.room, `${u.name} hat die App verlassen.`);
+      Object.values(voiceRooms).forEach(s => s.delete(socket.id));
+      io.emit('voicePeerLeft', { peerId: socket.id });
+      delete users[socket.id];
+      broadcastUsers();
     }
   });
 });
+
+
 
 server.listen(PORT, () => console.log(`✅ Server läuft auf Port ${PORT}`));

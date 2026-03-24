@@ -115,7 +115,7 @@ io.on('connection', socket => {
     const u = users[socket.id]; if (!u) return;
     if (name)   u.name   = name;
     if (color)  u.color  = color;
-    if (avatar) u.avatar = typeof avatar === 'string' ? avatar.slice(0, 500000) : avatar;
+    if (avatar) u.avatar = typeof avatar === 'string' ? avatar.slice(0, 200000) : avatar;
     broadcastUsers();
     socket.emit('profileUpdated', { name: u.name, color: u.color, avatar: u.avatar });
   });
@@ -309,7 +309,9 @@ if (!allowedTypes.includes(type)) return;
     io.to(targetId).emit('privateCallIncoming', { fromId: socket.id, fromName: caller.name });
   });
   socket.on('privateCallAccept', ({ targetId }) => {
-  const privateRoom = `private_${[socket.id, targetId].sort().join('_')}`;
+ const callerName=users[socket.id]?.name||'?';
+const receiverName=users[targetId]?.name||'?';
+const privateRoom = `📞 ${callerName} & ${receiverName}`;
   io.to(targetId).emit('privateCallAccepted', { fromId: socket.id, privateRoom });
   io.to(socket.id).emit('privateCallAccepted', { fromId: targetId, privateRoom });
 });
