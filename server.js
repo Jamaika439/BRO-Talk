@@ -26,18 +26,7 @@ function saveDB(db) {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
-let db = loadDB();//-----------------------------------
-if(process.env.CLEAR_ON_START){
-  Object.keys(db.messages).forEach(room=>{
-    db.messages[room]=(db.messages[room]||[]).filter(m=>
-      !String(m.content||'').includes('localhost') &&
-      !String(m.fileUrl||'').includes('localhost')
-    );
-  });
-  saveDB(db);
-  console.log('✅ Localhost-Nachrichten bereinigt');
-}
-//-------------------------------------------
+let db = loadDB();
 if (!db.dms)            { db.dms = {};            saveDB(db); }
 if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
 if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
@@ -66,7 +55,16 @@ const storage = multer.diskStorage({
   destination: uploadsDir,
   filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
 });
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+const ALLOWED_MIME=['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','video/mp4','video/webm','audio/mpeg','audio/wav','audio/webm','audio/ogg','application/pdf','application/zip','text/plain'];
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter:(req,file,cb)=>{
+    if(ALLOWED_MIME.includes(file.mimetype))cb(null,true);
+    else cb(new Error('Dateityp nicht erlaubt'));
+  }
+});
 
 const app    = express();
 const server = http.createServer(app);
@@ -104,8 +102,41 @@ function broadcastRooms() { io.emit('roomList', db.rooms); }
 function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user: 'System', type: 'system', content: text, timestamp: ts() }); }
 
 io.on('connection', socket => {
+  // Rate Limiter pro Socket
+  const eventCounts=new Map();
+  const socketLimiter=(max,windowMs=1000)=>{
+    return ()=>{
+      const now=Date.now();
+      const key=socket.id;
+      if(!eventCounts.has(key))eventCounts.set(key,{count:0,reset:now+windowMs});
+      const entry=eventCounts.get(key);
+      if(now>entry.reset){entry.count=0;entry.reset=now+windowMs;}
+      entry.count++;
+      return entry.count<=max;
+    };
+  };
+  const msgOk=socketLimiter(5);
+  const actionOk=socketLimiter(10);
+
+  socket.use(([event],next)=>{
+    const limited=['message','typing','playSound'];
+    const actioned=['changeRoom','createRoom','joinVoice','privateMessage'];
+    if(limited.includes(event)&&!msgOk()){
+      socket.emit('error','Zu viele Nachrichten');return;
+    }
+    if(actioned.includes(event)&&!actionOk()){
+      socket.emit('error','Zu viele Aktionen');return;
+    }
+    next();
+  });
   const pingInterval = setInterval(() => socket.emit('ping_check', Date.now()), 10000);
   socket.on('pong_check', t => socket.emit('ping_result', Date.now() - t));
+
+  // Auth Guard — alle Events außer join brauchen einen eingeloggten User
+  const requireUser=(fn)=>(...args)=>{
+    if(!users[socket.id]){socket.emit('error','Nicht eingeloggt');return;}
+    fn(...args);
+  };
 
   socket.on('join', ({ name, room = 'Allgemein', color = '#5865f2', avatar = '😎' }) => {
     name = sanitize(name, 24);
@@ -247,11 +278,17 @@ io.on('connection', socket => {
   });
 
   
-  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle, voiceDuration }) => {
+  socket.on('message', requireUser(({ text, room, type = 'text', fileUrl, fileName, fmtStyle, voiceDuration }) => {
   
     text = sanitize(text, 2000);
 room = sanitize(room, 32);
-fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
+// Nur erlaubte CSS Properties durchlassen
+function sanitizeFmt(s){
+  if(typeof s!=='string')return null;
+  const allowed=/^(color:[#\w().,\s]+;?)?(font-family:'[\w\s]+',[\w-]+;?)?(font-weight:\d+;?)?(text-shadow:[#\w().,\s-]+;?)*$/;
+  return s.length<500&&allowed.test(s)?s:null;
+}
+fmtStyle=sanitizeFmt(fmtStyle);
     const u = users[socket.id]; if (!u) return;
     const allowedTypes = ['text', 'image', 'file', 'formatted', 'voice'];
 if (!allowedTypes.includes(type)) return;
@@ -263,7 +300,7 @@ if (!allowedTypes.includes(type)) return;
 };
     addMessage(room, msg);
     io.to(room).emit('message', msg);
-  });
+  }));
 
   socket.on('deleteMessage', ({ room, msgId }) => {
     const u = users[socket.id]; if (!u) return;
