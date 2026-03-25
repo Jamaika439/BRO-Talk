@@ -32,6 +32,19 @@ if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']
 if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
 if (!db.voicePasswords) { db.voicePasswords = {}; saveDB(db); }
 
+//-----------------------------------
+if(process.env.CLEAR_ON_START){
+  Object.keys(db.messages).forEach(room=>{
+    db.messages[room]=(db.messages[room]||[]).filter(m=>
+      !String(m.content||'').includes('localhost') &&
+      !String(m.fileUrl||'').includes('localhost')
+    );
+  });
+  saveDB(db);
+  console.log('✅ Localhost-Nachrichten bereinigt');
+}
+//-------------------------------------------
+
 function addMessage(room, msg) {
   if (!db.messages[room]) db.messages[room] = [];
   db.messages[room].push(msg);
