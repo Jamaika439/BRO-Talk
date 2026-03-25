@@ -132,12 +132,18 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .msg-row:hover .del-msg-btn{display:block}
 .typing-row{padding:4px 16px 8px;font-size:.78rem;color:var(--muted);min-height:22px;flex-shrink:0}
 
+
 #inputWrap{padding:0 16px 14px;position:relative;flex-shrink:0}
 #inputBar{display:flex;align-items:flex-end;background:var(--chat-input-bg);border-radius:10px;padding:4px 4px 4px 8px;gap:4px;transition:background .3s}
 #msgInput{flex:1;background:none;border:none;color:var(--text);font-size:.93rem;padding:8px 6px;resize:none;max-height:120px;line-height:1.4;min-height:20px;font-family:var(--font)}
 #msgInput:focus{outline:none}#msgInput::placeholder{color:var(--muted)}
 .ib-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px 8px;border-radius:6px;font-size:1.1rem;line-height:1;flex-shrink:0}
 .ib-btn:hover{color:var(--text);background:var(--bg3)}
+#voiceRecBtn.recording{color:var(--red);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.2);}}
+.voice-msg{display:flex;align-items:center;gap:10px;background:var(--bg4);padding:10px 14px;border-radius:12px;margin-top:4px;min-width:220px}
+.voice-msg audio{flex:1;height:32px;accent-color:var(--accent)}
+.voice-msg-dur{font-size:.72rem;color:var(--muted);flex-shrink:0}
 .send-btn{background:var(--accent);border:none;color:#fff;padding:7px 14px;border-radius:7px;cursor:pointer;font-size:.95rem;font-weight:700;flex-shrink:0}
 .send-btn:hover{background:var(--accent2)}
 
@@ -719,6 +725,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
       <input type="file" id="fileIn" style="display:none" accept="image/*,video/*,.pdf,.zip,.txt,.mp3,.wav">
       <textarea id="msgInput" placeholder="Nachricht schreiben…" rows="1"></textarea>
       <button class="ib-btn" id="sbBtn">🎵</button>
+      <button class="ib-btn" id="voiceRecBtn" title="Sprachnachricht">🎙</button>
       <button class="send-btn" id="sendBtn">➤</button>
     </div>
   </div>
@@ -1622,6 +1629,17 @@ function renderMsg(m,scroll=false){
   else{
     const txt=m.content||m.text||'';
     let body='';
+    if(m.type==='voice'){
+  const dur=m.voiceDuration||0;
+  const mm=Math.floor(dur/60),ss=dur%60;
+  const voiceSrc=m.content||m.fileUrl||'';
+  body=`<div class="voice-msg">
+    🎙
+    <audio class="voice-audio" src="${voiceSrc}" controls preload="none"></audio>
+    <span class="voice-msg-dur">${mm}:${ss.toString().padStart(2,'0')}</span>
+  </div>`;
+
+}else
     if(m.type==='image')body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none'">`;
     else if(m.type==='file')body=`<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName||'Datei')}">📎 ${esc(m.fileName||'Datei')}</a>`;
    else if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>`;
@@ -1663,6 +1681,77 @@ function sendMsg(){
   document.getElementById('msgInput').value='';
   document.getElementById('msgInput').style.height='auto';
 }
+
+// ── VOICE MESSAGES ──
+let voiceRecorder=null,voiceChunks=[],voiceRecording=false,voiceTimer=null,voiceSeconds=0;
+const MAX_VOICE_SEC=300;
+
+document.getElementById('voiceRecBtn').onclick=()=>{
+  if(!voiceRecording)startVoiceRec();
+  else stopVoiceRec();
+};
+
+async function startVoiceRec(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      audio:{deviceId:selectedMicId?{exact:selectedMicId}:undefined,echoCancellation:true,noiseSuppression:true},
+      video:false
+    });
+    voiceChunks=[];
+    voiceRecorder=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm'});
+    voiceRecorder.ondataavailable=e=>{if(e.data.size>0)voiceChunks.push(e.data);};
+    voiceRecorder.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(voiceChunks,{type:voiceRecorder.mimeType});
+      await uploadVoiceMsg(blob);
+    };
+    voiceRecorder.start(100);
+    voiceRecording=true;
+    voiceSeconds=0;
+    const btn=document.getElementById('voiceRecBtn');
+    btn.classList.add('recording');
+    btn.textContent='⏹';
+    // Timer
+    voiceTimer=setInterval(()=>{
+      voiceSeconds++;
+      const m=Math.floor(voiceSeconds/60),s=voiceSeconds%60;
+      btn.title=`Aufnahme: ${m}:${s.toString().padStart(2,'0')} / 5:00`;
+      if(voiceSeconds>=MAX_VOICE_SEC)stopVoiceRec();
+    },1000);
+  }catch(e){alert('Mikrofon Fehler: '+e.message);}
+}
+
+function stopVoiceRec(){
+  if(!voiceRecorder||voiceRecorder.state==='inactive')return;
+  clearInterval(voiceTimer);
+  voiceRecorder.stop();
+  voiceRecording=false;
+  const btn=document.getElementById('voiceRecBtn');
+  btn.classList.remove('recording');
+  btn.textContent='🎙';
+  btn.title='Sprachnachricht';
+}
+
+async function uploadVoiceMsg(blob){
+  if(!socket)return;
+  const fd=new FormData();
+  fd.append('file',blob,'voice_'+Date.now()+'.webm');
+  try{
+    showSoundToast('⏳ Sende Sprachnachricht…');
+    const r=await fetch(`${serverUrl}/upload`,{method:'POST',body:fd});
+    const json=await r.json();
+    console.log('Upload response:',json);
+    const {url,name}=json;
+    const fixedUrl=url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/,serverUrl);
+    console.log('fixedUrl:',fixedUrl);
+    socket.emit('message',{text:fixedUrl,room:myRoom,type:'voice',fileUrl:fixedUrl,fileName:name,voiceDuration:voiceSeconds});
+    showSoundToast('✅ Sprachnachricht gesendet');
+  }catch(e){
+    console.error('Upload Fehler:',e);
+    alert('Upload Fehler: '+e.message);
+  }
+}
+
 document.getElementById('fileBtn').onclick=()=>document.getElementById('fileIn').click();
 document.getElementById('fileIn').onchange=async function(){
   const file=this.files[0];if(!file)return;
@@ -1948,26 +2037,48 @@ async function setupAudioProcessing(stream){
     outGain.gain.value=0.65;
     lastNode=chain([lastNode,notch,notch2,hp,hp2,lp,lp2,sub,hfKill,vBoost,comp,comp2,lim,outGain]);
   }
-  if(noiseGateEnabled){
+if(noiseGateEnabled){
     await ensureNoiseGateWorklet(audioCtx);
     if(noiseGateWorkletLoaded){
-      try{const ngNode=new AudioWorkletNode(audioCtx,'noise-gate');ngNode.port.postMessage({threshold:noiseGateThreshold});lastNode.connect(ngNode);ngNode.connect(dest);}
-      catch{lastNode.connect(dest);}
+      try{
+        const ngNode=new AudioWorkletNode(audioCtx,'noise-gate');
+        ngNode.port.postMessage({threshold:noiseGateThreshold});
+        lastNode.connect(ngNode);ngNode.connect(dest);
+      }catch{lastNode.connect(dest);}
     }else{
-      const analyserNG=audioCtx.createAnalyser();analyserNG.fftSize=512;
-      const gateGain=audioCtx.createGain();gateGain.gain.value=1.0;
+      const analyserNG=audioCtx.createAnalyser();
+      analyserNG.fftSize=256;
+      analyserNG.smoothingTimeConstant=0.3;
+      const gateGain=audioCtx.createGain();gateGain.gain.value=0.0;
       lastNode.connect(analyserNG);analyserNG.connect(gateGain);gateGain.connect(dest);
       const ngBuf=new Uint8Array(analyserNG.frequencyBinCount);
-      let gateOpen=true,holdFrames=0;const HOLD=6;
+      let gateOpen=false,holdFrames=0;
+      const HOLD=8;
+      const ATTACK=0.003;
+      const RELEASE=0.008;
       const ngInterval=setInterval(()=>{
         if(!audioCtx||audioCtx.state==='closed'){clearInterval(ngInterval);return;}
-        analyserNG.getByteFrequencyData(ngBuf);
-        const avg=ngBuf.reduce((a,b)=>a+b,0)/ngBuf.length/128;
-        if(avg>noiseGateThreshold){gateOpen=true;holdFrames=HOLD;}
-        else if(holdFrames>0){holdFrames--;gateOpen=true;}
-        else gateOpen=false;
-        gateGain.gain.setTargetAtTime(gateOpen?1.0:0.001,audioCtx.currentTime,0.015);
-      },30);
+        analyserNG.getByteTimeDomainData(ngBuf);
+        // RMS statt Frequenz-Durchschnitt — viel präziser
+        let sum=0;
+        for(let i=0;i<ngBuf.length;i++){
+          const s=(ngBuf[i]-128)/128;
+          sum+=s*s;
+        }
+        const rms=Math.sqrt(sum/ngBuf.length);
+        if(rms>noiseGateThreshold){
+          gateOpen=true;holdFrames=HOLD;
+        }else if(holdFrames>0){
+          holdFrames--;gateOpen=true;
+        }else{
+          gateOpen=false;
+        }
+        gateGain.gain.setTargetAtTime(
+          gateOpen?1.0:0.0,
+          audioCtx.currentTime,
+          gateOpen?ATTACK:RELEASE
+        );
+      },15);
     }
   }else{lastNode.connect(dest);}
   return dest.stream;
@@ -2792,7 +2903,20 @@ async function openAudioModal(){
   document.getElementById('ngThreshLine').style.left=Math.round(noiseGateThreshold*100)+'%';
   document.getElementById('voiceIsolationToggle').checked=voiceIsolationEnabled;
   document.getElementById('audioModal').classList.add('on');
-  try{const s=await navigator.mediaDevices.getUserMedia({audio:true,video:false});startNgMonitor(s);ngMonitorStream=s;}catch{}
+try{
+  const s=await navigator.mediaDevices.getUserMedia({
+    audio:{
+      deviceId:selectedMicId?{exact:selectedMicId}:undefined,
+      echoCancellation:false,
+      noiseSuppression:false,
+      autoGainControl:false,
+      sampleRate:48000
+    },
+    video:false
+  });
+  startNgMonitor(s);
+  ngMonitorStream=s;
+}catch{}
 }
 async function populateDevices(){
   try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());}catch{}

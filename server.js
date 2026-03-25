@@ -236,19 +236,19 @@ io.on('connection', socket => {
   });
 
   
-  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle }) => {
+  socket.on('message', ({ text, room, type = 'text', fileUrl, fileName, fmtStyle, voiceDuration }) => {
   
     text = sanitize(text, 2000);
 room = sanitize(room, 32);
 fmtStyle = typeof fmtStyle === 'string' ? fmtStyle.slice(0, 500) : null;
     const u = users[socket.id]; if (!u) return;
-    const allowedTypes = ['text', 'image', 'file', 'formatted'];
+    const allowedTypes = ['text', 'image', 'file', 'formatted', 'voice'];
 if (!allowedTypes.includes(type)) return;
     const msg = {
   id: Date.now(), user: u.name, userId: socket.id,
   color: u.color, avatar: u.avatar,
-  type, content: type === 'file' || type === 'image' ? fileUrl : text,
-  fileName: fileName || null, fmtStyle: fmtStyle||null, timestamp: ts()
+ type, content: type === 'file' || type === 'image' || type === 'voice' ? fileUrl : text,
+ fileName: fileName || null, fmtStyle: fmtStyle, voiceDuration: voiceDuration||0, timestamp: ts()
 };
     addMessage(room, msg);
     io.to(room).emit('message', msg);
