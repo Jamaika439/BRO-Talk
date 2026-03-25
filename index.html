@@ -141,7 +141,8 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .ib-btn:hover{color:var(--text);background:var(--bg3)}
 #voiceRecBtn.recording{color:var(--red);animation:pulse 1s infinite;}
 @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.2);}}
-.voice-msg{display:flex;align-items:center;gap:10px;background:var(--bg4);padding:10px 14px;border-radius:12px;margin-top:4px;min-width:220px}
+.voice-msg{display:flex;align-items:center;gap:10px;background:var(--bg3);padding:10px 14px;border-radius:12px;margin-top:4px;min-width:220px;border:1px solid var(--bg4)}
+.voice-msg audio{flex:1;height:32px;accent-color:var(--accent);filter:invert(0)}
 .voice-msg audio{flex:1;height:32px;accent-color:var(--accent)}
 .voice-msg-dur{font-size:.72rem;color:var(--muted);flex-shrink:0}
 .send-btn{background:var(--accent);border:none;color:#fff;padding:7px 14px;border-radius:7px;cursor:pointer;font-size:.95rem;font-weight:700;flex-shrink:0}
@@ -1709,15 +1710,16 @@ async function startVoiceRec(){
     voiceRecording=true;
     voiceSeconds=0;
     const btn=document.getElementById('voiceRecBtn');
-    btn.classList.add('recording');
-    btn.textContent='⏹';
+btn.classList.add('recording');
+btn.textContent='⏹ 0:00';
     // Timer
     voiceTimer=setInterval(()=>{
-      voiceSeconds++;
-      const m=Math.floor(voiceSeconds/60),s=voiceSeconds%60;
-      btn.title=`Aufnahme: ${m}:${s.toString().padStart(2,'0')} / 5:00`;
-      if(voiceSeconds>=MAX_VOICE_SEC)stopVoiceRec();
-    },1000);
+  voiceSeconds++;
+  const m=Math.floor(voiceSeconds/60),s=voiceSeconds%60;
+  btn.textContent=`⏹ ${m}:${s.toString().padStart(2,'0')}`;
+  btn.title=`Aufnahme läuft… Max 5:00`;
+  if(voiceSeconds>=MAX_VOICE_SEC)stopVoiceRec();
+},1000);
   }catch(e){alert('Mikrofon Fehler: '+e.message);}
 }
 
