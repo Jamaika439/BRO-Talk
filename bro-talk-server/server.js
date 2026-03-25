@@ -26,13 +26,7 @@ function saveDB(db) {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
-let db = loadDB();
-if (!db.dms)            { db.dms = {};            saveDB(db); }
-if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
-if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
-if (!db.voicePasswords) { db.voicePasswords = {}; saveDB(db); }
-
-//-----------------------------------
+let db = loadDB();//-----------------------------------
 if(process.env.CLEAR_ON_START){
   Object.keys(db.messages).forEach(room=>{
     db.messages[room]=(db.messages[room]||[]).filter(m=>
@@ -44,6 +38,12 @@ if(process.env.CLEAR_ON_START){
   console.log('✅ Localhost-Nachrichten bereinigt');
 }
 //-------------------------------------------
+if (!db.dms)            { db.dms = {};            saveDB(db); }
+if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
+if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
+if (!db.voicePasswords) { db.voicePasswords = {}; saveDB(db); }
+
+
 
 function addMessage(room, msg) {
   if (!db.messages[room]) db.messages[room] = [];
