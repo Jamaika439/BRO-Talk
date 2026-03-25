@@ -141,7 +141,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .ib-btn:hover{color:var(--text);background:var(--bg3)}
 #voiceRecBtn.recording{color:var(--red);animation:pulse 1s infinite;}
 @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.2);}}
-.voice-msg{display:flex;align-items:center;gap:10px;background:var(--bg3);padding:10px 14px;border-radius:12px;margin-top:4px;min-width:220px;border:1px solid var(--bg4)}
+.voice-msg{display:flex;align-items:center;gap:10px;background:var(--bg4);padding:10px 14px;border-radius:12px;margin-top:4px;min-width:220px;border:1px solid var(--bg0)}
 .voice-msg audio{flex:1;height:32px;accent-color:var(--accent);filter:invert(0)}
 .voice-msg audio{flex:1;height:32px;accent-color:var(--accent)}
 .voice-msg-dur{font-size:.72rem;color:var(--muted);flex-shrink:0}
@@ -396,7 +396,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     <select id="micSelect" style="margin-bottom:10px"></select>
     <div class="prof-lbl">Eingangslautstärke (Mikrofon)</div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-      <input type="range" id="micGainSlider" min="0" max="300" value="100" style="flex:1;accent-color:var(--accent);height:4px">
+      <input type="range" id="micGainSlider" min="0" max="300" value="100" style="flex:1;accent-color:var(--accent);height:4px;padding:0;margin:0">
       <span id="micGainLabel" style="font-size:.82rem;color:var(--muted);min-width:36px">100%</span>
     </div>
     <div class="prof-lbl">Lautsprecher</div>
@@ -404,7 +404,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     <div style="margin-bottom:14px;font-size:.75rem;color:var(--muted)">⚠️ Ausgabegerät-Auswahl nur Chrome/Edge</div>
     <div class="prof-lbl">Ausgabe-Lautstärke</div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-      <input type="range" id="masterVolSlider" min="0" max="200" value="100" style="flex:1;accent-color:var(--accent);height:4px">
+      <input type="range" id="masterVolSlider" min="0" max="200" value="100" style="flex:1;accent-color:var(--accent);height:4px;padding:0;margin:0">
       <span id="masterVolLabel" style="font-size:.82rem;color:var(--muted);min-width:36px">100%</span>
     </div>
     <div class="prof-lbl">Rauschunterdrückung</div>
@@ -422,7 +422,8 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
       </div>
       <div id="noiseGateRow" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <span style="font-size:.78rem;color:var(--muted);min-width:80px">Schwelle:</span>
-        <input type="range" id="noiseGateSlider" min="0" max="100" value="8" style="flex:1;accent-color:var(--accent);height:4px">
+        
+        <input type="range" id="noiseGateSlider" min="0" max="100" value="8" style="flex:1;accent-color:var(--accent);height:4px;padding:0;margin:0">
         <span id="noiseGateLabel" style="font-size:.78rem;color:var(--muted);min-width:36px">8%</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
