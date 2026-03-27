@@ -778,10 +778,13 @@ const SOUND_DEFS_SB = [
   { name:'Nein',       emoji:'🙋‍♂️', url:`${BASE}assets/sounds/nein.mp3` },
   { name:'Rizz',       emoji:'😎', url:`${BASE}assets/sounds/rizz-sound-effect.mp3` },
   { name:'Franzosen',  emoji:'🥖', url:`${BASE}assets/sounds/franzosen-grrrrr_9R4znxK.mp3` },
-  { name:'Fresse',     emoji:'🤐', url:`${BASE}assets/sounds/fresse.mp3` },
+  { name:'Fresse',     emoji:'😤', url:`${BASE}assets/sounds/fresse.mp3` },
   { name:'Sven',       emoji:'👋', url:`${BASE}assets/sounds/sven_OpcGpxO.mp3` },
   { name:'Yeah',       emoji:'🎉', url:`${BASE}assets/sounds/yeah-boiii-i-i-i (1).mp3` },
-  { name:'Indian',     emoji:'🎵', url:`${BASE}assets/sounds/indian-song.mp3` },
+  { name:'Indian',     emoji:'🔴', url:`${BASE}assets/sounds/indian-song.mp3` },
+  { name:'Nice',     emoji:'✔️', url:`${BASE}assets/sounds/Nice.mp3` },
+  { name:'Fart',     emoji:'🌬️', url:`${BASE}assets/sounds/Fart.mp3` },
+  { name:'Punch',     emoji:'👊', url:`${BASE}assets/sounds/Punch.mp3` },
 ];
 SOUND_DEFS_SB.forEach(s => { SOUND_DATA[s.name] = s.url; });
 
@@ -831,6 +834,9 @@ const BG_PRESETS=[
   {label:'Cat meme',   val:'https://www.bing.com/th/id/OGC.e739a107c09286b4fb68a8f7a6303692?o=7&pid=1.7&rm=3&rurl=https%3a%2f%2fc.tenor.com%2fGbutACtJBTMAAAAd%2fcat.gif&ehk=nY4ljfSii8ZXgA9z%2fHHhvYeNfFUB%2bMrydVA0BCk8ato%3d'},
   {label:'simpson hahah',   val:'https://www.bing.com/th/id/OGC.7fa4bcee8eb3c582e317dbbf76c3abe6?o=7&pid=1.7&rm=3&rurl=https%3a%2f%2fmedia.tenor.co%2fimages%2f7fa4bcee8eb3c582e317dbbf76c3abe6%2ftenor.gif&ehk=F4l6jBcBN%2b08Kc8y0ppxBjWnx%2bTGvT7fFV3pA6tnT7w%3d'},
   {label:'GTA APE',   val:'https://cdn0.vox-cdn.com/uploads/chorus_asset/file/3683060/gta_5_mod_chimp.0.gif'},
+   {label:'pixel adventure time',   val:'https://media1.tenor.com/m/DF7b306lMm0AAAAd/finn-and-jake.gif'},
+  {label:'pixel adventure time',   val:'https://wallpaperaccess.com/full/7824075.gif'},
+  {label:'pixel night cat',   val:'https://media1.tenor.com/m/GTzbJen5xcoAAAAC/cute-wallpaper.gif'},
   {label:'Custoall',   val:''}
 ];
 const UI_SOUND_DEFS=[
@@ -1005,12 +1011,16 @@ function applyBtnColor() {
   }
 
 }
+
 function applyFmtToUI(){
   const s=buildFmtStyle();
   if(!s)return;
-  const targets=document.querySelectorAll('.btn-primary,.btn-acc,.send-btn,.fmt-btn,.room-item,.voice-ch,.sec-lbl,.srv-hdr,#chName,#selfName,.msg-text');
-  targets.forEach(el=>el.setAttribute('style',(el.getAttribute('style')||'')+';'+s));
+  // selfName ausschließen — behält myColor
+  const targets=document.querySelectorAll('.btn-primary,.btn-acc,.send-btn,.fmt-btn,.room-item,.voice-ch,.sec-lbl,.srv-hdr,#chName,.msg-text');
+  targets.recover(el=>el.setAttribute('style',(el.getAttribute('style')||'')+';'+s));
 }
+
+
 function applyAppearance(){
   const r=document.documentElement.style;
   r.setProperty('--accent',appearance.accent);
@@ -2712,6 +2722,19 @@ document.getElementById('sbBtn').onclick=()=>{
 document.getElementById('closeSounds').onclick=()=>document.getElementById('soundModal').classList.remove('on');
 document.getElementById('sbVolume').oninput=function(){soundVolume=this.value/100;localStorage.setItem('brotalk_soundvolume',soundVolume);document.getElementById('sbVolLabel').textContent=this.value+'%';};
 document.getElementById('sbStopBtn').onclick=()=>{stopCurrentSound();socket?.emit('stopSound',{room:myRoom});};
+
+document.getElementById('sbUpload').onchange=function(){
+  const file=this.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    sounds[file.name]=e.target.result;
+    localStorage.setItem('brotalk_sounds',JSON.stringify(sounds));
+    renderSoundboard();
+  };
+  r.readAsDataURL(file);
+  this.value='';
+};
+
 function stopCurrentSound(){if(currentSound){try{currentSound.pause();currentSound.currentTime=0;}catch{}currentSound=null;}}
 
 function renderSoundboard(){
