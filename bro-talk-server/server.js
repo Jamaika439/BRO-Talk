@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 
 function sanitize(str, maxLen=100){
   if(typeof str !== 'string') return '';
-  return str.trim().slice(0, maxLen).replace(/[<>]/g, '');
+  return str.trim().slice(0, maxLen).replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 const PORT       = process.env.PORT || 3000;
@@ -275,7 +275,7 @@ io.on('connection', socket => {
 
   socket.on('message', requireUser(({ text, room, type = 'text', fileUrl, fileName, fmtStyle, voiceDuration }) => {
   
-    text = sanitize(text, 2000);
+   text = typeof text === 'string' ? text.trim().slice(0, 2000) : '';
 room = sanitize(room, 32);
 // Nur erlaubte CSS Properties durchlassen
 function sanitizeFmt(s){
@@ -296,6 +296,20 @@ if (!allowedTypes.includes(type)) return;
     addMessage(room, msg);
     io.to(room).emit('message', msg);
   }));
+
+  socket.on('editMessage', ({ room, msgId, newText }) => {
+  const u = users[socket.id]; if (!u) return;
+  if (!db.messages[room]) return;
+  newText = typeof newText === 'string' ? newText.trim().slice(0, 2000) : '';
+  if (!newText) return;
+  const msg = db.messages[room].find(m => m.id === msgId);
+  if (msg && (msg.userId === socket.id || msg.user === u.name)) {
+    msg.content = newText;
+    msg.edited = true;
+    saveDB(db);
+    io.to(room).emit('messageEdited', { msgId, newText, edited: true });
+  }
+});
 
   socket.on('deleteMessage', ({ room, msgId }) => {
     const u = users[socket.id]; if (!u) return;

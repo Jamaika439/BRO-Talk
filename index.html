@@ -127,9 +127,10 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .msg-text{font-size:.93rem;line-height:1.45;word-break:break-word;white-space:pre-wrap}
 .msg-img{max-width:360px;max-height:280px;border-radius:8px;cursor:pointer;margin-top:4px;display:block}
 .msg-file{display:inline-flex;align-items:center;gap:8px;background:var(--bg4);padding:8px 12px;border-radius:8px;margin-top:4px;text-decoration:none;color:var(--text);font-size:.88rem}
-.sys-msg{text-align:center;padding:2px;color:var(--muted);font-size:.78rem;font-style:italic}
-.del-msg-btn{display:none;position:absolute;top:4px;right:6px;background:var(--bg4);border:1px solid var(--bg0);color:var(--red);cursor:pointer;padding:2px 7px;border-radius:5px;font-size:.72rem;font-weight:700}
-.msg-row:hover .del-msg-btn{display:block}
+.sys-msg{text-align:center;padding:2px;color:var(--muted);.del-msg-btn,.edit-msg-btn{display:none;position:absolute;background:var(--bg4);border:1px solid var(--bg0);cursor:pointer;padding:2px 7px;border-radius:5px;font-size:.72rem;font-weight:700}}
+.del-msg-btn{right:6px;top:4px;color:var(--red)}
+.edit-msg-btn{right:36px;top:4px;color:var(--muted)}
+.msg-row:hover .del-msg-btn,.msg-row:hover .edit-msg-btn{display:block}
 .typing-row{padding:4px 16px 8px;font-size:.78rem;color:var(--muted);min-height:22px;flex-shrink:0}
 
 
@@ -217,7 +218,10 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .color-picker-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .color-picker-row input[type=color]{width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;padding:0;background:none}
 .zone-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-.zone-item{background:var(--bg4);border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px}
+.zone-item{background:var(--bg4);border-radius:7px;padding:7px 8px;display:flex;align-items:center;gap:6px}
+.zone-item label{flex:1;font-size:.75rem;color:var(--text)}
+.zone-item input[type=color]{width:26px;height:26px;}
+.zone-item button{font-size:.7rem;padding:1px 5px;}
 .zone-item label{flex:1;font-size:.82rem;color:var(--text)}
 .zone-item input[type=color]{width:32px;height:32px;border:none;border-radius:6px;cursor:pointer;padding:0;background:none}
 .zone-item button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 6px;border-radius:4px}
@@ -510,6 +514,16 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     
     <div class="prof-lbl">Schriftart</div>
     <div class="font-grid" id="fontGrid"></div>
+    <div class="prof-lbl">🎙 Sprachnachrichten Farbe</div>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:var(--bg4);padding:10px 12px;border-radius:8px">
+  <span style="font-size:.82rem;color:var(--text);flex:1">Hintergrundfarbe</span>
+  <input type="color" id="voiceMsgColor" value="#2b2d31" style="width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;padding:0">
+  <button class="fmt-btn" id="voiceMsgColorReset" style="font-size:.72rem;padding:3px 7px">↺</button>
+  <div style="background:var(--bg4);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;border:1px solid var(--bg0)">
+    <span style="font-size:.75rem">🎙</span>
+    <div id="voiceMsgPreview" style="font-size:.75rem;color:var(--muted)">Vorschau</div>
+  </div>
+</div>
    <div class="prof-lbl">✏️ Chat-Textformatierung</div>
 <div style="background:var(--bg4);border-radius:10px;padding:14px;margin-bottom:14px">
   
@@ -876,7 +890,7 @@ let currentSound=null,soundVolume=1.0;
 try{const sv=localStorage.getItem('brotalk_soundvolume');if(sv!=null)soundVolume=parseFloat(sv);}catch{}
 
 // ── FORMAT STATE ──
-let fmtState={bold:false,shadow:false,outline:false,color:null,outlineColor:'#000000',font:'',btnColor:null};
+let fmtState={bold:false,shadow:false,outline:false,color:null,outlineColor:'#000000',font:'',btnColor:null,voiceMsgColor:'#2b2d31'};
 try{const fs=localStorage.getItem('brotalk_fmt');if(fs)fmtState=JSON.parse(fs);}catch{}
 
 function buildFmtStyle(){
@@ -928,6 +942,17 @@ function initFmtModal(){
     saveFmt(); // <-- WICHTIG: Speichert den Reset sofort!
   };
  
+  const vmc=document.getElementById('voiceMsgColor');
+  vmc.value=fmtState.voiceMsgColor||'#2b2d31';
+  vmc.oninput=()=>{
+    fmtState.voiceMsgColor=vmc.value;
+    updateVoiceMsgColor();
+  };
+  document.getElementById('voiceMsgColorReset').onclick=()=>{
+    fmtState.voiceMsgColor='#2b2d31';
+    vmc.value='#2b2d31';
+    updateVoiceMsgColor();
+  };
   document.getElementById('fmtReset').onclick=()=>{
     fmtState={bold:false,shadow:false,outline:false,color:null,outlineColor:'#000000',font:''};
     ['fmtBold','fmtShadow','fmtOutline'].forEach(id=>document.getElementById(id).classList.remove('active'));
@@ -985,6 +1010,14 @@ async function flushIce(pid){
 }
 
 // ── APPEARANCE ──
+
+function updateVoiceMsgColor(){
+  const c=fmtState.voiceMsgColor||'#2b2d31';
+  document.querySelectorAll('.voice-msg').forEach(el=>el.style.background=c);
+  const prev=document.getElementById('voiceMsgPreview');
+  if(prev)prev.parentElement.style.background=c;
+}
+
 function applyBtnColor() {
   if(!fmtState) return;
   const c = fmtState.btnColor;
@@ -1064,6 +1097,9 @@ function applyAppearance(){
     }
   });
 }
+
+applyAppearance();
+updateVoiceMsgColor();
 
 function darken(hex,pct){
   let n=parseInt(hex.slice(1),16)||0;
@@ -1525,6 +1561,23 @@ function doJoin(){
   socket.on('roomDeleted',({name})=>{if(myRoom===name)switchRoom('Allgemein');});
   socket.on('voiceChannelList',list=>{VOICE_CHANNELS=list;renderVoiceList();});
   socket.on('messageDeleted',({msgId})=>document.querySelector(`.msg-row[data-id="${msgId}"]`)?.remove());
+  socket.on('messageEdited',({msgId,newText,edited})=>{
+  const row=document.querySelector(`.msg-row[data-id="${msgId}"]`);
+  if(!row)return;
+  const textEl=row.querySelector('.msg-text');
+  if(textEl){
+    textEl.textContent=newText;
+    // (bearbeitet) Label
+    if(!row.querySelector('.edited-label')){
+      const lbl=document.createElement('span');
+      lbl.className='edited-label';
+      lbl.style.cssText='font-size:.65rem;color:var(--muted);margin-left:6px';
+      lbl.textContent='(bearbeitet)';
+      textEl.after(lbl);
+    }
+  }
+});
+
   socket.on('chatCleared',()=>{document.getElementById('chatArea').innerHTML='';sysLocal('🗑 Chat wurde geleert.');});
   socket.on('roomPasswordWrong',()=>{
     document.getElementById('roomPwIn').value='';
@@ -1663,17 +1716,30 @@ function renderMsg(m,scroll=false){
   const dur=m.voiceDuration||0;
   const mm=Math.floor(dur/60),ss=dur%60;
   const voiceSrc=m.content||m.fileUrl||'';
-  body=`<div class="voice-msg">
+  const vmColor=fmtState?.voiceMsgColor||'#2b2d31';
+  body=`<div class="voice-msg" style="background:${vmColor}">
+      
     🎙
     <audio class="voice-audio" src="${voiceSrc}" controls preload="none"></audio>
     <span class="voice-msg-dur">${mm}:${ss.toString().padStart(2,'0')}</span>
   </div>`;
 
 }else
-    if(m.type==='image')body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none'">`;
+if(m.type==='image')body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none'">`;
     else if(m.type==='file')body=`<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName||'Datei')}">📎 ${esc(m.fileName||'Datei')}</a>`;
-   else if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>`;
-else body=`<span class="msg-text" style="${m.userId===myId?buildFmtStyle():''}">${linkify(esc(txt))}</span>`;
+    else if(m.type==='voice'){
+      const dur=m.voiceDuration||0;
+      const mm=Math.floor(dur/60),ss=dur%60;
+      const vmColor=fmtState?.voiceMsgColor||'#2b2d31';
+      const voiceSrc=m.content||m.fileUrl||'';
+      body=`<div class="voice-msg" style="background:${vmColor}">🎙<audio class="voice-audio" src="${voiceSrc}" controls preload="none"></audio><span class="voice-msg-dur">${mm}:${ss.toString().padStart(2,'0')}</span></div>`;
+    }
+    else{
+      const editedLabel=m.edited?`<span class="edited-label" style="font-size:.65rem;color:var(--muted);margin-left:6px">(bearbeitet)</span>`:'';
+      if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>${editedLabel}`;
+      else body=`<span class="msg-text" style="${m.userId===myId?buildFmtStyle():''}">${linkify(esc(txt))}</span>${editedLabel}`;
+    }
+
     const d=mk('div','msg-row');d.dataset.id=m.id;
 const isCustomAv=m.avatar&&typeof m.avatar==='string'&&m.avatar.startsWith('data:');
 const avStyle=isCustomAv?`background:${m.color||'#5865f2'}66;background-image:url('${m.avatar}');background-size:cover;background-position:center;background-repeat:no-repeat`:`background:${m.color||'#5865f2'}66`;
@@ -1681,12 +1747,53 @@ const avContent=isCustomAv?'':esc(m.avatar||m.user?.[0]?.toUpperCase()||'?');
 d.innerHTML=`<div class="avatar" style="${avStyle}">${avContent}</div>
 
       <div class="msg-body"><div class="msg-hdr"><span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span><span class="msg-time">${m.timestamp||''}</span></div>${body}</div>
-      <button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
+      <button class="edit-msg-btn" onclick="editMsg(${m.id},this)">✏️</button>
+<button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
     ca.appendChild(d);
   }
   if(scroll)scrollChat();
 }
 function deleteMsg(id){socket?.emit('deleteMessage',{room:myRoom,msgId:id});}
+
+function editMsg(id, btn) {
+  const row = btn.closest('.msg-row');
+  const textEl = row.querySelector('.msg-text');
+  if (!textEl) return;
+  const oldText = textEl.textContent;
+  // Inline Editor
+  const input = document.createElement('textarea');
+  input.value = oldText;
+  input.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--accent);border-radius:6px;padding:6px 8px;color:var(--text);font-size:.93rem;resize:none;line-height:1.4;font-family:var(--font);min-height:40px';
+  input.rows = Math.ceil(oldText.length / 60) || 1;
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:6px;margin-top:4px';
+  btnRow.innerHTML = `
+    <button class="btn-acc" style="padding:4px 12px;font-size:.78rem" id="editSaveBtn">✅ Speichern</button>
+    <button class="btn-sec" style="padding:4px 12px;font-size:.78rem" id="editCancelBtn">✕ Abbrechen</button>
+  `;
+  textEl.replaceWith(input);
+  input.after(btnRow);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  btnRow.querySelector('#editSaveBtn').onclick = () => {
+    const newText = input.value.trim();
+    if (!newText || newText === oldText) { cancelEdit(); return; }
+    socket?.emit('editMessage', { room: myRoom, msgId: id, newText });
+  };
+  btnRow.querySelector('#editCancelBtn').onclick = cancelEdit;
+  input.onkeydown = e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); btnRow.querySelector('#editSaveBtn').click(); }
+    if (e.key === 'Escape') cancelEdit();
+  };
+  function cancelEdit() {
+    const span = document.createElement('span');
+    span.className = 'msg-text';
+    span.style = textEl.style.cssText || '';
+    span.textContent = oldText;
+    input.replaceWith(span);
+    btnRow.remove();
+  }
+}
 document.getElementById('clearChatBtn').onclick=()=>{if(!socket||!confirm('Chat wirklich leeren?'))return;socket.emit('clearChat',{room:myRoom});};
 function scrollChat(){const c=document.getElementById('chatArea');c.scrollTop=c.scrollHeight;}
 function sysLocal(t){renderMsg({type:'system',content:t},true);}
@@ -3048,7 +3155,7 @@ const mobileOv=document.createElement('div');
 mobileOv.id='mobileOverlay';
 mobileOv.onclick=toggleMobileMenu;
 document.body.appendChild(mobileOv);
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function linkify(s){return s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:var(--accent)">$1</a>');}
 </script>
 </body>
