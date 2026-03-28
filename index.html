@@ -561,7 +561,9 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
       <span style="font-size:.8rem;color:var(--muted)">🔊</span>
       <input type="range" id="sbVolume" min="0" max="100" value="100" style="width:140px;accent-color:var(--accent);height:4px;padding:0;margin:0">
       <span id="sbVolLabel" style="font-size:.8rem;color:var(--muted);min-width:34px">100%</span>
-      <button id="sbStopBtn" style="margin-left:auto;background:var(--bg4);border:1px solid var(--red);color:var(--red);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:700">⏹ Stop</button>
+      <button id="sbStopBtn" style="margin-left:auto;background:var(--red);border:none;color:#fff;padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:800;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px #f23f4244;transition:.15s">
+  <span style="font-size:1rem">⏹</span> Stop
+</button>
     </div>
     <div id="sbGrid"></div>
     <label style="cursor:pointer;font-size:.85rem;color:var(--muted)">
@@ -855,6 +857,11 @@ const SOUND_PRESETS={
   off:null,
 };
 
+
+// Render Wakeup alle 10 Minuten
+setInterval(()=>{
+  fetch('https://bro-talk.onrender.com/rooms').catch(()=>{});
+},10*60*1000);
 let socket,myId,myName='',myRoom='Allgemein',myColor='#5865f2',myAvatar='😎';
 let micMuted=false,deafened=false;
 let peerConns={},localStream=null,shareStream=null,camStream=null,currentVoiceRoom=null;
@@ -1423,10 +1430,21 @@ function doJoin(){
     timeout:20000
   });
 
-  socket.on('reconnect',()=>{
-    socket.emit('join',{name:myName,room:myRoom,color:myColor,avatar:myAvatar});
-    if(currentVoiceRoom)socket.emit('joinVoice',{room:currentVoiceRoom});
-  });
+ socket.on('reconnect',()=>{
+  socket.emit('join',{name:myName,room:myRoom,color:myColor,avatar:myAvatar});
+  if(currentVoiceRoom){
+    setTimeout(async()=>{
+      socket.emit('joinVoice',{room:currentVoiceRoom});
+      // WebRTC neu aufbauen
+      Object.keys(peerConns).forEach(pid=>{
+        cleanPeer(pid);
+      });
+      await restartVoiceStreamFull();
+      // Neue Peers anfordern
+      socket.emit('joinVoice',{room:currentVoiceRoom});
+    },1000);
+  }
+});
 
   socket.on('connect',()=>{myId=socket.id;socket.emit('join',{name,room,color:myColor,avatar:myAvatar});});
  socket.on('joined',({name:n,room:r})=>{
@@ -1938,6 +1956,7 @@ function setInputsLocked(locked){
 }
 
 document.getElementById('saveProfile').onclick=()=>{
+document.getElementById('cancelProfile').onclick=()=>document.getElementById('profileModal').classList.remove('on');
   const name=document.getElementById('profNameIn').value.trim()||myName;
   // custom Avatar hat Vorrang vor Emoji
   const av=customAvatar||document.querySelector('.prof-av.selected')?.dataset.av||myAvatar;

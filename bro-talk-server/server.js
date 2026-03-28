@@ -69,12 +69,7 @@ const upload = multer({
 
 const app    = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*' },
-  maxHttpBufferSize: 25e6,
-  pingTimeout: 60000,
-  pingInterval: 25000
-});
+const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6, pingTimeout: 120000, pingInterval: 15000 });
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: 'Zu viele Anfragen, bitte warte kurz.' });
 const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
