@@ -297,6 +297,23 @@ if (!allowedTypes.includes(type)) return;
     io.to(room).emit('message', msg);
   }));
 
+  socket.on('addReaction', ({ room, msgId, emoji }) => {
+  const u = users[socket.id]; if (!u) return;
+  if (!db.messages[room]) return;
+  const msg = db.messages[room].find(m => m.id === msgId);
+  if (!msg) return;
+  if (!msg.reactions) msg.reactions = {};
+  if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+  const idx = msg.reactions[emoji].indexOf(u.name);
+  if (idx === -1) {
+    msg.reactions[emoji].push(u.name);
+  } else {
+    msg.reactions[emoji].splice(idx, 1);
+    if (!msg.reactions[emoji].length) delete msg.reactions[emoji];
+  }
+  saveDB(db);
+  io.to(room).emit('reactionUpdated', { msgId, reactions: msg.reactions });
+});
 socket.on('editMessage', ({ room, msgId, newText }) => {
   const u = users[socket.id]; if (!u) return;
   if (!db.messages[room]) return;

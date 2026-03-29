@@ -126,11 +126,18 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .msg-user{font-weight:700;font-size:.92rem;transition:color .2s}.msg-time{font-size:.7rem;color:var(--muted)}
 .msg-text{font-size:.93rem;line-height:1.45;word-break:break-word;white-space:pre-wrap}
 .msg-img{max-width:360px;max-height:280px;border-radius:8px;cursor:pointer;margin-top:4px;display:block}
+.reactions-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.reaction-btn{background:var(--bg4);border:1px solid var(--bg3);border-radius:10px;padding:2px 8px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:4px;transition:.15s}
+.reaction-btn:hover{border-color:var(--accent)}
+.reaction-btn.active{background:var(--accent)22;border-color:var(--accent)}
+.reaction-btn span{font-size:.75rem;color:var(--muted)}
 .msg-file{display:inline-flex;align-items:center;gap:8px;background:var(--bg4);padding:8px 12px;border-radius:8px;margin-top:4px;text-decoration:none;color:var(--text);font-size:.88rem}
-.sys-msg{text-align:center;padding:2px;color:var(--muted);.del-msg-btn,.edit-msg-btn{display:none;position:absolute;background:var(--bg4);border:1px solid var(--bg0);cursor:pointer;padding:2px 7px;border-radius:5px;font-size:.72rem;font-weight:700}}
+.sys-msg{text-align:center;padding:2px;color:var(--muted);.del-msg-btn,.edit-msg-btn,.react-msg-btn{display:none;position:absolute;background:transparent;border:none;cursor:pointer;padding:2px 7px;border-radius:5px;font-size:.85rem;font-weight:700;opacity:0.5;transition:.15s}}
 .del-msg-btn{right:6px;top:4px;color:var(--red)}
 .edit-msg-btn{right:36px;top:4px;color:var(--muted)}
-.msg-row:hover .del-msg-btn,.msg-row:hover .edit-msg-btn{display:block}
+.react-msg-btn{right:66px;top:4px;color:var(--muted)}
+.del-msg-btn:hover,.edit-msg-btn:hover{opacity:1;background:var(--bg4)}
+.msg-row:hover .del-msg-btn,.msg-row:hover .edit-msg-btn,.msg-row:hover .react-msg-btn{display:block}
 .typing-row{padding:4px 16px 8px;font-size:.78rem;color:var(--muted);min-height:22px;flex-shrink:0}
 
 
@@ -1561,9 +1568,23 @@ function doJoin(){
   socket.on('roomDeleted',({name})=>{if(myRoom===name)switchRoom('Allgemein');});
   socket.on('voiceChannelList',list=>{VOICE_CHANNELS=list;renderVoiceList();});
   socket.on('messageDeleted',({msgId})=>document.querySelector(`.msg-row[data-id="${msgId}"]`)?.remove());
+ socket.on('reactionUpdated',({msgId,reactions})=>{
+  const row=document.getElementById('reactions-'+msgId);
+  if(row)row.innerHTML=renderReactions(reactions,msgId);
+});
   socket.on('messageEdited',({msgId,newText,edited})=>{
   const row=document.querySelector(`.msg-row[data-id="${msgId}"]`);
   if(!row)return;
+  // Editor entfernen falls offen
+  const input=row.querySelector('textarea');
+  const btnRow=row.querySelector('#editSaveBtn')?.closest('div');
+  if(input){
+    const span=document.createElement('span');
+    span.className='msg-text';
+    span.textContent=newText;
+    input.replaceWith(span);
+    btnRow?.remove();
+  }
   const textEl=row.querySelector('.msg-text');
   if(textEl){
     textEl.textContent=newText;
@@ -1746,7 +1767,8 @@ const avStyle=isCustomAv?`background:${m.color||'#5865f2'}66;background-image:ur
 const avContent=isCustomAv?'':esc(m.avatar||m.user?.[0]?.toUpperCase()||'?');
 d.innerHTML=`<div class="avatar" style="${avStyle}">${avContent}</div>
 
-      <div class="msg-body"><div class="msg-hdr"><span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span><span class="msg-time">${m.timestamp||''}</span></div>${body}</div>
+    <button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>
+      <div class="msg-body"><div class="msg-hdr"><span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span><span class="msg-time">${m.timestamp||''}</span></div>${body}<div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions||{},m.id)}</div></div>
       <button class="edit-msg-btn" onclick="editMsg(${m.id},this)">✏️</button>
 <button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
     ca.appendChild(d);
@@ -1754,6 +1776,30 @@ d.innerHTML=`<div class="avatar" style="${avStyle}">${avContent}</div>
   if(scroll)scrollChat();
 }
 function deleteMsg(id){socket?.emit('deleteMessage',{room:myRoom,msgId:id});}
+
+const REACTION_EMOJIS=['👍','❤️','😂','😮','😢','🔥','🎉','👎'];
+function renderReactions(reactions,msgId){
+  return Object.entries(reactions).map(([emoji,users])=>
+    `<button class="reaction-btn${users.includes(myName)?' active':''}" onclick="socket?.emit('addReaction',{room:myRoom,msgId:${msgId},emoji:'${emoji}'})" title="${users.join(', ')}">
+      ${emoji} <span>${users.length}</span>
+    </button>`
+  ).join('');
+}
+function toggleReactionPicker(msgId,btn){
+  document.querySelectorAll('.reaction-picker').forEach(p=>p.remove());
+  const pick=mk('div','reaction-picker');
+  pick.style.cssText='position:absolute;right:6px;top:28px;background:var(--bg1);border-radius:10px;padding:6px;display:flex;gap:4px;box-shadow:0 4px 16px #0009;z-index:50;border:1px solid var(--bg4)';
+  REACTION_EMOJIS.forEach(e=>{
+    const b=mk('button');b.textContent=e;
+    b.style.cssText='background:none;border:none;cursor:pointer;font-size:1.2rem;padding:3px;border-radius:5px;transition:.15s';
+    b.onmouseenter=()=>b.style.background='var(--bg3)';
+    b.onmouseleave=()=>b.style.background='none';
+    b.onclick=()=>{socket?.emit('addReaction',{room:myRoom,msgId,emoji:e});pick.remove();};
+    pick.appendChild(b);
+  });
+  btn.closest('.msg-row').appendChild(pick);
+  setTimeout(()=>document.addEventListener('click',()=>pick.remove(),{once:true}),10);
+}
 
 function editMsg(id, btn) {
   const row = btn.closest('.msg-row');
@@ -1778,7 +1824,8 @@ function editMsg(id, btn) {
   btnRow.querySelector('#editSaveBtn').onclick = () => {
     const newText = input.value.trim();
     if (!newText || newText === oldText) { cancelEdit(); return; }
-    socket?.emit('editMessage', { room: myRoom, msgId: id, newText });
+    console.log('Sending editMessage:', { room: myRoom, msgId: id, newText });
+socket?.emit('editMessage', { room: myRoom, msgId: id, newText });
   };
   btnRow.querySelector('#editCancelBtn').onclick = cancelEdit;
   input.onkeydown = e => {
