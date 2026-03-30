@@ -127,17 +127,59 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .msg-text{font-size:.93rem;line-height:1.45;word-break:break-word;white-space:pre-wrap}
 .msg-img{max-width:360px;max-height:280px;border-radius:8px;cursor:pointer;margin-top:4px;display:block}
 .reactions-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-.reaction-btn{background:var(--bg4);border:1px solid var(--bg3);border-radius:10px;padding:2px 8px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:4px;transition:.15s}
-.reaction-btn:hover{border-color:var(--accent)}
+.reaction-btn{background:transparent;border:1px solid transparent;border-radius:10px;padding:2px 8px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:4px;transition:.15s}
+.reaction-btn:hover{border-color:var(--accent);background:var(--bg4)}
 .reaction-btn.active{background:var(--accent)22;border-color:var(--accent)}
 .reaction-btn span{font-size:.75rem;color:var(--muted)}
 .msg-file{display:inline-flex;align-items:center;gap:8px;background:var(--bg4);padding:8px 12px;border-radius:8px;margin-top:4px;text-decoration:none;color:var(--text);font-size:.88rem}
-.sys-msg{text-align:center;padding:2px;color:var(--muted);.del-msg-btn,.edit-msg-btn,.react-msg-btn{display:none;position:absolute;background:transparent;border:none;cursor:pointer;padding:2px 7px;border-radius:5px;font-size:.85rem;font-weight:700;opacity:0.5;transition:.15s}}
-.del-msg-btn{right:6px;top:4px;color:var(--red)}
-.edit-msg-btn{right:36px;top:4px;color:var(--muted)}
-.react-msg-btn{right:66px;top:4px;color:var(--muted)}
-.del-msg-btn:hover,.edit-msg-btn:hover{opacity:1;background:var(--bg4)}
-.msg-row:hover .del-msg-btn,.msg-row:hover .edit-msg-btn,.msg-row:hover .react-msg-btn{display:block}
+/* System-Nachricht sauber geschlossen */
+.sys-msg { text-align: center; padding: 2px; color: var(--muted); font-size: .78rem; font-style: italic; }
+
+.reply-preview {
+  display: none;
+  align-items: center;
+  background: var(--bg2);
+  padding: 8px 16px;
+  border-left: 4px solid var(--accent);
+  gap: 12px;
+  position: relative;
+}
+.reply-preview.on { display: flex; }
+.reply-info { flex: 1; overflow: hidden; }
+.reply-info div { font-size: 0.75rem; color: var(--accent); font-weight: bold; }
+.reply-info p { font-size: 0.85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.reply-close { cursor: pointer; opacity: 0.6; font-size: 1.2rem; }
+.reply-close:hover { opacity: 1; }
+
+/* Der neue Button-Style */
+.reply-msg-btn { right: 90px; top: 4px; color: var(--muted); }
+/* Ersetze den Bereich ab .reply-msg-btn bis zum Ende der Hover-Regeln */
+.del-msg-btn, .edit-msg-btn, .react-msg-btn, .reply-msg-btn {
+  display: none;
+  position: absolute;
+  top: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: .85rem;
+  transition: .15s;
+  z-index: 10;
+}
+
+.del-msg-btn { right: 6px; color: var(--red); }
+.edit-msg-btn { right: 34px; color: var(--muted); }
+.react-msg-btn { right: 62px; color: var(--muted); }
+.reply-msg-btn { right: 90px; color: var(--muted); }
+
+.msg-row:hover .del-msg-btn, 
+.msg-row:hover .edit-msg-btn, 
+.msg-row:hover .react-msg-btn,
+.msg-row:hover .reply-msg-btn {
+  display: block;
+}
+
 .typing-row{padding:4px 16px 8px;font-size:.78rem;color:var(--muted);min-height:22px;flex-shrink:0}
 
 
@@ -715,7 +757,7 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
         <line x1="14.6" y1="5.9" x2="16.5" y2="4" stroke="currentColor" stroke-width="1.5"/>
         <line x1="9.4" y1="5.9" x2="7.5" y2="4" stroke="currentColor" stroke-width="1.5"/>
       </svg>
-      STREAM
+     STREAM
     </button>
     <button class="cam-btn" id="camBtn">📷 CAM</button>
     <button class="icon-btn" id="flyingBtn" style="font-size:.9rem;border:2px solid var(--muted);border-radius:6px;padding:4px 8px;color:var(--muted)">🪟</button>
@@ -1765,16 +1807,44 @@ if(m.type==='image')body=`<img class="msg-img" src="${esc(txt)}" onclick="openLi
 const isCustomAv=m.avatar&&typeof m.avatar==='string'&&m.avatar.startsWith('data:');
 const avStyle=isCustomAv?`background:${m.color||'#5865f2'}66;background-image:url('${m.avatar}');background-size:cover;background-position:center;background-repeat:no-repeat`:`background:${m.color||'#5865f2'}66`;
 const avContent=isCustomAv?'':esc(m.avatar||m.user?.[0]?.toUpperCase()||'?');
-d.innerHTML=`<div class="avatar" style="${avStyle}">${avContent}</div>
 
-    <button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>
-      <div class="msg-body"><div class="msg-hdr"><span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span><span class="msg-time">${m.timestamp||''}</span></div>${body}<div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions||{},m.id)}</div></div>
-      <button class="edit-msg-btn" onclick="editMsg(${m.id},this)">✏️</button>
-<button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
+// 1. Prüfen: Ist es meine Nachricht? (Über ID oder Name)
+const isMe = (m.userId === socket.id || m.user === myName);
+
+// 2. Prüfen: Ist es ein GIF oder eine Sprachnachricht?
+const isGif = m.type === 'image' || (m.content && (m.content.includes('.gif') || m.content.includes('giphy') || m.content.includes('tenor')));
+const isAudio = m.type === 'voice' || body.includes('<audio');
+
+// 3. Buttons generieren
+let actionButtons = `<button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>`;
+
+if (isMe) {
+    // Löschen-Button für alle eigenen Nachrichten
+    actionButtons += `<button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
+    
+    // Bearbeiten-Button NUR wenn es KEIN Gif und KEIN Audio ist
+    if (!isGif && !isAudio) {
+        actionButtons += `<button class="edit-msg-btn" onclick="editMsg(${m.id},this)">✏️</button>`;
+    }
+}
+
+// 4. Das fertige HTML setzen
+d.innerHTML = `
+    <div class="avatar" style="${avStyle}">${avContent}</div>
+    ${actionButtons}
+    <div class="msg-body">
+        <div class="msg-hdr">
+            <span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span>
+            <span class="msg-time">${m.timestamp||''}</span>
+        </div>
+        ${body}
+        <div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions||{},m.id)}</div>
+    </div>`;
     ca.appendChild(d);
   }
   if(scroll)scrollChat();
 }
+
 function deleteMsg(id){socket?.emit('deleteMessage',{room:myRoom,msgId:id});}
 
 const REACTION_EMOJIS=['👍','❤️','😂','😮','😢','🔥','🎉','👎'];
