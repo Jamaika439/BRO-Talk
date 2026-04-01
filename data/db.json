@@ -1,87 +1,13 @@
 {
   "messages": {
     "Allgemein": [
-      {
-        "id": 1772623186050,
-        "user": "s",
-        "userId": "0g9M9M15sazEVxg2AAAB",
-        "color": "#5865f2",
-        "avatar": "😎",
-        "type": "image",
-        "content": "http://localhost:3000/uploads/1772623186045_dogecoin.jpg",
-        "fileName": "dogecoin.jpg",
-        "timestamp": "12:19"
-      },
-      {
-        "id": 1772627588345,
-        "user": "e",
-        "userId": "0nF-0zNnjlDK3PCDAAAD",
-        "color": "#5865f2",
-        "avatar": "🎃",
-        "type": "text",
-        "content": "z",
-        "fileName": null,
-        "timestamp": "13:33"
-      },
-      {
-        "id": 1772638410745,
-        "user": "ds",
-        "userId": "KVlc3hyw-IC1xUFlAAAD",
-        "color": "#5865f2",
-        "avatar": "🦄",
-        "type": "text",
-        "content": "ycyxcy",
-        "fileName": null,
-        "timestamp": "16:33"
-      }
+  
     ],
     "Gaming": [
-      {
-        "id": 1772623595161,
-        "user": "ddd",
-        "userId": "gP77JFJg2FE0mKn1AAAB",
-        "color": "#f23f42",
-        "avatar": "🐼",
-        "type": "text",
-        "content": "🤡",
-        "fileName": null,
-        "timestamp": "12:26"
-      },
-      {
-        "id": 1772627650212,
-        "user": "d",
-        "userId": "QCeLukdtDRSb1ln3AAAB",
-        "color": "#5865f2",
-        "avatar": "👾",
-        "type": "text",
-        "content": "🥲",
-        "fileName": null,
-        "timestamp": "13:34"
-      }
+   
     ],
     "Musik": [
-      {
-        "id": 1772623613381,
-        "user": "ddd",
-        "userId": "gP77JFJg2FE0mKn1AAAB",
-        "color": "#f23f42",
-        "avatar": "🐼",
-        "type": "text",
-        "content": "sdfsdfs",
-        "fileName": null,
-        "timestamp": "12:26"
-      },
-      {
-        "id": 1772626069211,
-        "user": "ddd",
-        "userId": "YL3Mnk5TAxEm5WpeAAAB",
-        "color": "#5865f2",
-        "avatar": "🤖",
-        "type": "image",
-        "content": "http://localhost:3000/uploads/1772626069206_941adm.jpg",
-        "fileName": "941adm.jpg",
-        "timestamp": "13:07"
-      }
+      
     ]
   },
   "rooms": [
