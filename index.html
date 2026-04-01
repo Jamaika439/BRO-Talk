@@ -135,50 +135,6 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 /* System-Nachricht sauber geschlossen */
 .sys-msg { text-align: center; padding: 2px; color: var(--muted); font-size: .78rem; font-style: italic; }
 
-.reply-preview {
-  display: none;
-  align-items: center;
-  background: var(--bg2);
-  padding: 8px 16px;
-  border-left: 4px solid var(--accent);
-  gap: 12px;
-  position: relative;
-}
-.reply-preview.on { display: flex; }
-.reply-info { flex: 1; overflow: hidden; }
-.reply-info div { font-size: 0.75rem; color: var(--accent); font-weight: bold; }
-.reply-info p { font-size: 0.85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
-.reply-close { cursor: pointer; opacity: 0.6; font-size: 1.2rem; }
-.reply-close:hover { opacity: 1; }
-
-/* Der neue Button-Style */
-.reply-msg-btn { right: 90px; top: 4px; color: var(--muted); }
-/* Ersetze den Bereich ab .reply-msg-btn bis zum Ende der Hover-Regeln */
-.del-msg-btn, .edit-msg-btn, .react-msg-btn, .reply-msg-btn {
-  display: none;
-  position: absolute;
-  top: 4px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: .85rem;
-  transition: .15s;
-  z-index: 10;
-}
-
-.del-msg-btn { right: 6px; color: var(--red); }
-.edit-msg-btn { right: 34px; color: var(--muted); }
-.react-msg-btn { right: 62px; color: var(--muted); }
-.reply-msg-btn { right: 90px; color: var(--muted); }
-
-.msg-row:hover .del-msg-btn, 
-.msg-row:hover .edit-msg-btn, 
-.msg-row:hover .react-msg-btn,
-.msg-row:hover .reply-msg-btn {
-  display: block;
-}
 
 .typing-row{padding:4px 16px 8px;font-size:.78rem;color:var(--muted);min-height:22px;flex-shrink:0}
 
@@ -336,7 +292,68 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
 .sp-screen-tile.selected{border-color:var(--accent);background:var(--accent)22}
 .sp-screen-tile img{width:100%;border-radius:3px;aspect-ratio:16/9;object-fit:cover;background:#000;margin-bottom:3px;display:block}
 .sp-screen-tile span{font-size:.68rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Vorschau-Leiste über dem Chat-Input */
+.reply-preview { display: none; align-items: center; background: var(--bg4); padding: 8px 16px; border-left: 4px solid var(--accent); border-radius: 8px 8px 0 0; margin-bottom: -10px; z-index: 10; position: relative; gap: 12px; }
+.reply-preview.on { display: flex; }
+.reply-info { flex: 1; overflow: hidden; }
+.reply-info div { font-size: 0.75rem; color: var(--accent); font-weight: 700; }
+.reply-info p { font-size: 0.85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.reply-close { cursor: pointer; color: var(--muted); font-size: 1.2rem; }
+.reply-close:hover { color: var(--red); }
+/* Der Zitat-Kasten IN der Chat-Nachricht */
+.reply-quote {
+    background: rgba(255, 255, 255, 0.05); /* Ganz leichtes Grau/Transparent */
+    border-left: 4px solid var(--accent);  /* Der farbige Balken links */
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    max-width: fit-content;
+    min-width: 150px;
+}
+
+.reply-quote:hover {
+    background: rgba(255, 255, 255, 0.1); /* Wird beim Drüberfahren etwas heller */
+}
+
+.reply-quote b {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--accent); /* Name des zitierten Users in Akzentfarbe */
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.reply-quote small {
+    color: var(--text);
+    opacity: 0.9;
+    font-size: 0.8rem;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Schneidet zu langen Text mit ... ab */
+}
+/* Alle Buttons im Nachrichten-Hover (inklusive Reply) */
+.del-msg-btn, .edit-msg-btn, .react-msg-btn, .reply-msg-btn {
+  display: none; position: absolute; top: 4px; background: transparent; border: none; cursor: pointer; padding: 2px 7px; border-radius: 5px; font-size: .85rem; font-weight: 700; opacity: 0.5; transition: .15s; z-index: 10;
+}
+.del-msg-btn { right: 6px; color: var(--red); }
+.edit-msg-btn { right: 34px; color: var(--muted); }
+.react-msg-btn { right: 62px; color: var(--muted); }
+.reply-msg-btn { right: 90px; color: var(--muted); } /* <-- Der neue Button */
+
+.msg-row:hover .del-msg-btn, .msg-row:hover .edit-msg-btn, .msg-row:hover .react-msg-btn, .msg-row:hover .reply-msg-btn {
+  display: block; opacity: 1;
+}
+.del-msg-btn:hover, .edit-msg-btn:hover, .react-msg-btn:hover, .reply-msg-btn:hover { background: var(--bg4); }
+.del-msg-btn:hover { background: var(--red); color: #fff; }
+
+
+
 </style>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
@@ -784,6 +801,13 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     <button id="pasteConfirmBtn">Senden</button>
     <button id="pasteCancelBtn">✕</button>
   </div>
+  <div id="replyPreview" class="reply-preview">
+  <div class="reply-info">
+    <div id="replyUser"></div>
+    <p id="replyText"></p>
+  </div>
+  <div class="reply-close" onclick="cancelReply()">✕</div>
+</div>
   <div id="inputWrap">
     <div id="inputBar">
       <button class="ib-btn" id="emojiBtn">😊</button>
@@ -1815,8 +1839,9 @@ const isMe = (m.userId === socket.id || m.user === myName);
 const isGif = m.type === 'image' || (m.content && (m.content.includes('.gif') || m.content.includes('giphy') || m.content.includes('tenor')));
 const isAudio = m.type === 'voice' || body.includes('<audio');
 
-// 3. Buttons generieren
-let actionButtons = `<button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>`;
+// 3. Buttons generieren (Antworten und React sind für JEDE Nachricht da)
+let actionButtons = `<button class="reply-msg-btn" title="Antworten" onclick="setReply(${m.id}, '${esc(m.user)}', '${esc(m.content || '')}')">↩️</button>`;
+actionButtons += `<button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>`;
 
 if (isMe) {
     // Löschen-Button für alle eigenen Nachrichten
@@ -1828,19 +1853,30 @@ if (isMe) {
     }
 }
 
-// 4. Das fertige HTML setzen
+let replyHeader = '';
+if (m.replyTo) {
+    // Hier bauen wir den grauen Kasten, der ÜBER dem Text erscheint
+    replyHeader = `
+    <div class="reply-quote" onclick="document.querySelector('.msg-row[data-id=\\'${m.replyTo.id}\\']')?.scrollIntoView({behavior:'smooth',block:'center'})" 
+         style="background: rgba(255, 255, 255, 0.07); border-left: 4px solid var(--accent); padding: 5px 10px; border-radius: 4px; margin-bottom: 6px; cursor: pointer;">
+        <b style="display: block; font-size: 0.75rem; color: var(--accent);">${esc(m.replyTo.user)}</b>
+        <small style="font-size: 0.85rem; opacity: 0.8; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(m.replyTo.text)}</small>
+    </div>`;
+}
+
+// 2. Das HTML der Nachricht zusammenbauen
 d.innerHTML = `
     <div class="avatar" style="${avStyle}">${avContent}</div>
     ${actionButtons}
     <div class="msg-body">
-        <div class="msg-hdr">
+        ${replyHeader} <div class="msg-hdr">
             <span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span>
             <span class="msg-time">${m.timestamp||''}</span>
         </div>
-        ${body}
-        <div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions||{},m.id)}</div>
+        <div class="msg-text">${body}</div> <div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions||{},m.id)}</div>
     </div>`;
-    ca.appendChild(d);
+
+ca.appendChild(d);
   }
   if(scroll)scrollChat();
 }
@@ -1930,10 +1966,11 @@ function sendMsg(){
   console.log('hasFmt:',hasFmt());
   console.log('style:',buildFmtStyle());
   const style=buildFmtStyle();
-  socket.emit('message',{text:t,room:myRoom,type:hasFmt()?'formatted':'text',fmtStyle:style||null});
+  socket.emit('message',{text:t,room:myRoom,type:hasFmt()?'formatted':'text',fmtStyle:style||null,replyTo: replyTo});
   console.log('SENT fmtStyle:',style||null);
   document.getElementById('msgInput').value='';
   document.getElementById('msgInput').style.height='auto';
+  cancelReply();
 }
 
 // ── VOICE MESSAGES ──
@@ -3272,6 +3309,23 @@ const mobileOv=document.createElement('div');
 mobileOv.id='mobileOverlay';
 mobileOv.onclick=toggleMobileMenu;
 document.body.appendChild(mobileOv);
+let replyTo = null;
+
+function setReply(id, user, text) {
+  // Wir filtern Bilder und extrem lange Texte für die Vorschau
+  const plainText = text.replace(/<[^>]*>/g, '').substring(0, 50);
+  replyTo = { id, user, text: plainText + (text.length > 50 ? '...' : '') };
+  
+  document.getElementById('replyUser').innerText = `Antwort an ${user}`;
+  document.getElementById('replyText').innerText = replyTo.text || 'Bild/Audio';
+  document.getElementById('replyPreview').classList.add('on');
+  document.getElementById('msgInput').focus(); // <-- Exakt DEINE ID!
+}
+
+function cancelReply() {
+  replyTo = null;
+  document.getElementById('replyPreview').classList.remove('on');
+}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function linkify(s){return s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:var(--accent)">$1</a>');}
 </script>

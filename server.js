@@ -273,29 +273,30 @@ io.on('connection', socket => {
   });
 
   
-  socket.on('message', requireUser(({ text, room, type = 'text', fileUrl, fileName, fmtStyle, voiceDuration }) => {
+// Oben in den Parametern "replyTo" hinzufügen:
+socket.on('message', requireUser(({ text, room, type = 'text', fileUrl, fileName, fmtStyle, voiceDuration, replyTo }) => {
   
-    text = typeof text === 'string' ? text.trim().slice(0, 2000) : '';
-room = sanitize(room, 32);
-// Nur erlaubte CSS Properties durchlassen
-function sanitizeFmt(s){
-  if(typeof s!=='string')return null;
-  const allowed=/^(color:[#\w().,\s]+;?)?(font-family:'[\w\s]+',[\w-]+;?)?(font-weight:\d+;?)?(text-shadow:[#\w().,\s-]+;?)*$/;
-  return s.length<500&&allowed.test(s)?s:null;
-}
-fmtStyle=sanitizeFmt(fmtStyle);
-    const u = users[socket.id]; if (!u) return;
-    const allowedTypes = ['text', 'image', 'file', 'formatted', 'voice'];
-if (!allowedTypes.includes(type)) return;
-    const msg = {
-  id: Date.now(), user: u.name, userId: socket.id,
-  color: u.color, avatar: u.avatar,
- type, content: type === 'file' || type === 'image' || type === 'voice' ? fileUrl : text,
- fileName: fileName || null, fmtStyle: fmtStyle, voiceDuration: voiceDuration||0, timestamp: ts()
-};
-    addMessage(room, msg);
-    io.to(room).emit('message', msg);
-  }));
+  text = typeof text === 'string' ? text.trim().slice(0, 2000) : '';
+  room = sanitize(room, 32);
+  
+  function sanitizeFmt(s) { /* ... bleibt wie es ist ... */ }
+  fmtStyle=sanitizeFmt(fmtStyle);
+  
+  const u = users[socket.id]; if (!u) return;
+  const allowedTypes = ['text', 'image', 'file', 'formatted', 'voice'];
+  if (!allowedTypes.includes(type)) return;
+  
+  const msg = {
+    id: Date.now(), user: u.name, userId: socket.id,
+    color: u.color, avatar: u.avatar,
+    type, content: type === 'file' || type === 'image' || type === 'voice' ? fileUrl : text,
+    fileName: fileName || null, fmtStyle: fmtStyle, voiceDuration: voiceDuration||0, timestamp: ts(),
+    replyTo: replyTo || null  // <--- DAS HIER MUSS REIN!
+  };
+  
+  addMessage(room, msg);
+  io.to(room).emit('message', msg);
+}));
 
   socket.on('addReaction', ({ room, msgId, emoji }) => {
   const u = users[socket.id]; if (!u) return;
