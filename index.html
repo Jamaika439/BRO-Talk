@@ -1792,94 +1792,90 @@ document.getElementById('createVoice').onclick = () => {
   document.getElementById('newVoiceModal').classList.remove('on');
 };
 
-// ── MESSAGES ──
-function renderMsg(m,scroll=false){
-  const ca=document.getElementById('chatArea');
-  if(m.type==='system'){const d=mk('div','sys-msg');d.textContent=m.content||m.text||'';ca.appendChild(d);}
-  else{
-    const txt=m.content||m.text||'';
-    let body='';
-    if(m.type==='voice'){
-  const dur=m.voiceDuration||0;
-  const mm=Math.floor(dur/60),ss=dur%60;
-  const voiceSrc=m.content||m.fileUrl||'';
-  const vmColor=fmtState?.voiceMsgColor||'#2b2d31';
-  body=`<div class="voice-msg" style="background:${vmColor}">
-      
-    🎙
-    <audio class="voice-audio" src="${voiceSrc}" controls preload="none"></audio>
-    <span class="voice-msg-dur">${mm}:${ss.toString().padStart(2,'0')}</span>
-  </div>`;
+function renderMsg(m, scroll = false) {
+  const ca = document.getElementById('chatArea');
+  if (m.type === 'system') {
+    const d = mk('div', 'sys-msg');
+    d.textContent = m.content || m.text || '';
+    ca.appendChild(d);
+    if (scroll) scrollChat();
+    return;
+  }
 
-}else
-if(m.type==='image')body=`<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none'">`;
-    else if(m.type==='file')body=`<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName||'Datei')}">📎 ${esc(m.fileName||'Datei')}</a>`;
-    else if(m.type==='voice'){
-      const dur=m.voiceDuration||0;
-      const mm=Math.floor(dur/60),ss=dur%60;
-      const vmColor=fmtState?.voiceMsgColor||'#2b2d31';
-      const voiceSrc=m.content||m.fileUrl||'';
-      body=`<div class="voice-msg" style="background:${vmColor}">🎙<audio class="voice-audio" src="${voiceSrc}" controls preload="none"></audio><span class="voice-msg-dur">${mm}:${ss.toString().padStart(2,'0')}</span></div>`;
-    }
-    else{
-      const editedLabel=m.edited?`<span class="edited-label" style="font-size:.65rem;color:var(--muted);margin-left:6px">(bearbeitet)</span>`:'';
-      if(m.type==='formatted')body=`<span class="msg-text" style="${m.fmtStyle||''}">${linkify(esc(txt))}</span>${editedLabel}`;
-      else body=`<span class="msg-text" style="${m.userId===myId?buildFmtStyle():''}">${linkify(esc(txt))}</span>${editedLabel}`;
-    }
+  const txt = m.content || m.text || '';
+  let body = '';
 
-    const d=mk('div','msg-row');d.dataset.id=m.id;
-const isCustomAv=m.avatar&&typeof m.avatar==='string'&&m.avatar.startsWith('data:');
-const avStyle=isCustomAv?`background:${m.color||'#5865f2'}66;background-image:url('${m.avatar}');background-size:cover;background-position:center;background-repeat:no-repeat`:`background:${m.color||'#5865f2'}66`;
-const avContent=isCustomAv?'':esc(m.avatar||m.user?.[0]?.toUpperCase()||'?');
-
-// 1. Prüfen: Ist es meine Nachricht? (Über ID oder Name)
-const isMe = (m.userId === socket.id || m.user === myName);
-
-// 2. Prüfen: Ist es ein GIF oder eine Sprachnachricht?
-const isGif = m.type === 'image' || (m.content && (m.content.includes('.gif') || m.content.includes('giphy') || m.content.includes('tenor')));
-const isAudio = m.type === 'voice' || body.includes('<audio');
-
-// 3. Buttons generieren (Antworten und React sind für JEDE Nachricht da)
-let actionButtons = `<button class="reply-msg-btn" title="Antworten" onclick="setReply(${m.id}, '${esc(m.user)}', '${esc(m.content || '')}')">↩️</button>`;
-actionButtons += `<button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>`;
-
-if (isMe) {
-    // Löschen-Button für alle eigenen Nachrichten
-    actionButtons += `<button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
+  // 1. Inhalts-Typen bestimmen
+  if (m.type === 'image') {
+    body = `<img class="msg-img" src="${esc(txt)}" onclick="openLightbox('${esc(txt)}')" loading="lazy" onerror="this.style.display='none'">`;
+  } else if (m.type === 'file') {
+    body = `<a class="msg-file" href="${esc(txt)}" target="_blank" rel="noopener noreferrer" download="${esc(m.fileName || 'Datei')}">📎 ${esc(m.fileName || 'Datei')}</a>`;
+  } else if (m.type === 'voice') {
+    const dur = m.voiceDuration || 0;
+    const mm = Math.floor(dur / 60), ss = dur % 60;
+    const vmColor = m.fmtStyle && m.fmtStyle.includes('voiceMsgColor') ? m.fmtStyle.split('voiceMsgColor:')[1].split(';')[0] : (fmtState?.voiceMsgColor || '#2b2d31');
+    const voiceSrc = m.content || m.fileUrl || '';
+    body = `<div class="voice-msg" style="background:${vmColor}">🎙<audio class="voice-audio" src="${voiceSrc}" controls preload="none"></audio><span class="voice-msg-dur">${mm}:${ss.toString().padStart(2, '0')}</span></div>`;
+  } else {
+    // TEXT & FORMATED
+    const editedLabel = m.edited ? `<span class="edited-label" style="font-size:.65rem;color:var(--muted);margin-left:6px">(bearbeitet)</span>` : '';
     
-    // Bearbeiten-Button NUR wenn es KEIN Gif und KEIN Audio ist
-    if (!isGif && !isAudio) {
-        actionButtons += `<button class="edit-msg-btn" onclick="editMsg(${m.id},this)">✏️</button>`;
-    }
-}
+    // WICHTIG: Hier nutzen wir m.fmtStyle vom Server für die Formation!
+    const activeStyle = m.type === 'formatted' ? (m.fmtStyle || '') : (m.userId === myId ? buildFmtStyle() : '');
+    
+    body = `<span class="msg-text-content" style="${activeStyle}">${linkify(esc(txt))}</span>${editedLabel}`;
+  }
 
-let replyHeader = '';
-if (m.replyTo) {
-    // Hier bauen wir den grauen Kasten, der ÜBER dem Text erscheint
+  // 2. Avatar & Buttons (Dein bestehender Code)
+  const d = mk('div', 'msg-row');
+  d.dataset.id = m.id;
+  const isCustomAv = m.avatar && typeof m.avatar === 'string' && m.avatar.startsWith('data:');
+  const avStyle = isCustomAv ? `background:${m.color || '#5865f2'}66;background-image:url('${m.avatar}');background-size:cover;background-position:center;background-repeat:no-repeat` : `background:${m.color || '#5865f2'}66`;
+  const avContent = isCustomAv ? '' : esc(m.avatar || (m.user ? m.user[0].toUpperCase() : '?'));
+
+  const isMe = (m.userId === socket.id || m.user === myName);
+  const isGif = m.type === 'image' || (txt.includes('.gif') || txt.includes('giphy') || txt.includes('tenor'));
+  const isAudio = m.type === 'voice';
+
+  let actionButtons = `<button class="reply-msg-btn" title="Antworten" onclick="setReply(${m.id}, '${esc(m.user)}', '${esc(txt)}')">↩️</button>`;
+  actionButtons += `<button class="react-msg-btn" onclick="toggleReactionPicker(${m.id},this)">😊</button>`;
+
+  if (isMe) {
+    actionButtons += `<button class="del-msg-btn" onclick="deleteMsg(${m.id})">🗑</button>`;
+    if (!isGif && !isAudio) {
+      actionButtons += `<button class="edit-msg-btn" onclick="editMsg(${m.id},this)">✏️</button>`;
+    }
+  }
+
+  // 3. Reply-Header (Zitat)
+  let replyHeader = '';
+  if (m.replyTo) {
     replyHeader = `
     <div class="reply-quote" onclick="document.querySelector('.msg-row[data-id=\\'${m.replyTo.id}\\']')?.scrollIntoView({behavior:'smooth',block:'center'})" 
          style="background: rgba(255, 255, 255, 0.07); border-left: 4px solid var(--accent); padding: 5px 10px; border-radius: 4px; margin-bottom: 6px; cursor: pointer;">
         <b style="display: block; font-size: 0.75rem; color: var(--accent);">${esc(m.replyTo.user)}</b>
         <small style="font-size: 0.85rem; opacity: 0.8; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(m.replyTo.text)}</small>
     </div>`;
-}
+  }
 
-// 2. Das HTML der Nachricht zusammenbauen
-d.innerHTML = `
+  // 4. Finales HTML
+  d.innerHTML = `
     <div class="avatar" style="${avStyle}">${avContent}</div>
     ${actionButtons}
     <div class="msg-body">
-        ${replyHeader} <div class="msg-hdr">
-            <span class="msg-user" style="color:${m.color||'#5865f2'};${m.fmtStyle?m.fmtStyle.replace(/color:[^;]+;/,''):''}">${esc(m.user)}</span>
-            <span class="msg-time">${m.timestamp||''}</span>
+        ${replyHeader}
+        <div class="msg-hdr">
+            <span class="msg-user" style="color:${m.color || '#5865f2'}">${esc(m.user)}</span>
+            <span class="msg-time">${m.timestamp || ''}</span>
         </div>
-        <div class="msg-text">${body}</div> <div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions||{},m.id)}</div>
+        <div class="msg-text">${body}</div> 
+        <div class="reactions-row" id="reactions-${m.id}">${renderReactions(m.reactions || {}, m.id)}</div>
     </div>`;
 
-ca.appendChild(d);
-  }
-  if(scroll)scrollChat();
+  ca.appendChild(d);
+  if (scroll) scrollChat();
 }
+  
 
 function deleteMsg(id){socket?.emit('deleteMessage',{room:myRoom,msgId:id});}
 

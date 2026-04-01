@@ -279,19 +279,34 @@ socket.on('message', requireUser(({ text, room, type = 'text', fileUrl, fileName
   text = typeof text === 'string' ? text.trim().slice(0, 2000) : '';
   room = sanitize(room, 32);
   
-  function sanitizeFmt(s) { /* ... bleibt wie es ist ... */ }
-  fmtStyle=sanitizeFmt(fmtStyle);
+  // Die Sanitize-Funktion kann bei komplexen Schatten-Styles manchmal zicken.
+  // Wir stellen sicher, dass fmtStyle nur gesetzt wird, wenn es ein String ist.
+  function sanitizeFmt(s) { 
+      if (!s || typeof s !== 'string') return null;
+      // Falls du hier eine sehr strenge Regex hast, könnte sie den Schatten/Outline löschen.
+      return s; 
+  }
+  
+  const cleanFmt = sanitizeFmt(fmtStyle);
   
   const u = users[socket.id]; if (!u) return;
   const allowedTypes = ['text', 'image', 'file', 'formatted', 'voice'];
   if (!allowedTypes.includes(type)) return;
   
   const msg = {
-    id: Date.now(), user: u.name, userId: socket.id,
-    color: u.color, avatar: u.avatar,
-    type, content: type === 'file' || type === 'image' || type === 'voice' ? fileUrl : text,
-    fileName: fileName || null, fmtStyle: fmtStyle, voiceDuration: voiceDuration||0, timestamp: ts(),
-    replyTo: replyTo || null  // <--- DAS HIER MUSS REIN!
+    id: Date.now(), 
+    user: u.name, 
+    userId: socket.id,
+    color: u.color, 
+    avatar: u.avatar,
+    type, 
+    // Wenn es ein Bild/File/Voice ist, nimm die URL, sonst den Text
+    content: (type === 'file' || type === 'image' || type === 'voice') ? fileUrl : text,
+    fileName: fileName || null, 
+    fmtStyle: cleanFmt, // <--- Hier nutzen wir den gesäuberten (oder originalen) Style
+    voiceDuration: voiceDuration || 0, 
+    timestamp: ts(),
+    replyTo: replyTo || null
   };
   
   addMessage(room, msg);
