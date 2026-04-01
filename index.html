@@ -855,26 +855,31 @@ function generateToneBase64(freq,dur,type='sine',vol=0.5){
   return 'data:audio/wav;base64,'+btoa(bin);
 }
 
-const SOUND_DATA={};
-const BASE = (window.electronAPI || location.protocol === 'file:') ? '' : '/';
+
+// Wir lassen den Browser entscheiden, wo er ist. 
+// window.location.origin gibt dir immer die Basis-URL (z.B. http://localhost:3000 oder https://deine-app.com)
+const BASE_URL = window.location.origin + '/';
 
 const SOUND_DEFS_SB = [
-  { name:'Airhorn',    emoji:'📯', url:`${BASE}assets/sounds/airhorn.mp3` },
-  { name:'Applaus',    emoji:'👏', url:`${BASE}assets/sounds/applause.mp3` },
-  { name:'Vine Boom',  emoji:'💥', url:`${BASE}assets/sounds/vine-boom.mp3` },
-  { name:'Bruh',       emoji:'😐', url:`${BASE}assets/sounds/bruh.mp3` },
-  { name:'Wow',        emoji:'😮', url:`${BASE}assets/sounds/anime-wow-sound-effect.mp3` },
-  { name:'Nein',       emoji:'🙋‍♂️', url:`${BASE}assets/sounds/nein.mp3` },
-  { name:'Rizz',       emoji:'😎', url:`${BASE}assets/sounds/rizz-sound-effect.mp3` },
-  { name:'Franzosen',  emoji:'🥖', url:`${BASE}assets/sounds/franzosen-grrrrr_9R4znxK.mp3` },
-  { name:'Fresse',     emoji:'😤', url:`${BASE}assets/sounds/fresse.mp3` },
-  { name:'Sven',       emoji:'👋', url:`${BASE}assets/sounds/sven_OpcGpxO.mp3` },
-  { name:'Yeah',       emoji:'🎉', url:`${BASE}assets/sounds/yeah-boiii-i-i-i (1).mp3` },
-  { name:'Indian',     emoji:'🔴', url:`${BASE}assets/sounds/indian-song.mp3` },
-  { name:'Nice',     emoji:'✔️', url:`${BASE}assets/sounds/Nice.mp3` },
-  { name:'Fart',     emoji:'🌬️', url:`${BASE}assets/sounds/Fart.mp3` },
-  { name:'Punch',     emoji:'👊', url:`${BASE}assets/sounds/Punch.mp3` },
+  { name:'Airhorn',   emoji:'📯', url: BASE_URL + 'assets/sounds/airhorn.mp3' },
+  { name:'Applaus',   emoji:'👏', url: BASE_URL + 'assets/sounds/applause.mp3' },
+  { name:'Vine Boom', emoji:'💥', url: BASE_URL + 'assets/sounds/vine-boom.mp3' },
+  { name:'Bruh',      emoji:'😐', url: BASE_URL + 'assets/sounds/bruh.mp3' },
+  { name:'Wow',       emoji:'😮', url: BASE_URL + 'assets/sounds/anime-wow-sound-effect.mp3' },
+  { name:'Nein',      emoji:'🙋‍♂️', url: BASE_URL + 'assets/sounds/nein.mp3' },
+  { name:'Rizz',      emoji:'😎', url: BASE_URL + 'assets/sounds/rizz-sound-effect.mp3' },
+  { name:'Franzosen', emoji:'🥖', url: BASE_URL + 'assets/sounds/franzosen-grrrrr_9R4znxK.mp3' },
+  { name:'Fresse',    emoji:'😤', url: BASE_URL + 'assets/sounds/fresse.mp3' },
+  { name:'Sven',      emoji:'👋', url: BASE_URL + 'assets/sounds/sven_OpcGpxO.mp3' },
+  { name:'Yeah',      emoji:'🎉', url: BASE_URL + 'assets/sounds/yeah-boiii-i-i-i (1).mp3' },
+  { name:'Indian',    emoji:'🔴', url: BASE_URL + 'assets/sounds/indian-song.mp3' },
+  { name:'Nice',      emoji:'✔️', url: BASE_URL + 'assets/sounds/Nice.mp3' },
+  { name:'Fart',      emoji:'💩', url: BASE_URL + 'assets/sounds/Fart.mp3' },
+  { name:'Punch',     emoji:'👊', url: BASE_URL + 'assets/sounds/Punch.mp3' },
+ { name:'Eiermann',   emoji:'(👉ﾟヮﾟ)', url: BASE_URL + 'assets/sounds/bingbong.mp3' },
 ];
+
+const SOUND_DATA = {};
 SOUND_DEFS_SB.forEach(s => { SOUND_DATA[s.name] = s.url; });
 
 // SOUND_DATA nicht mehr nötig – direkt URL abspielen
@@ -924,7 +929,6 @@ const BG_PRESETS=[
   {label:'simpson hahah',   val:'https://www.bing.com/th/id/OGC.7fa4bcee8eb3c582e317dbbf76c3abe6?o=7&pid=1.7&rm=3&rurl=https%3a%2f%2fmedia.tenor.co%2fimages%2f7fa4bcee8eb3c582e317dbbf76c3abe6%2ftenor.gif&ehk=F4l6jBcBN%2b08Kc8y0ppxBjWnx%2bTGvT7fFV3pA6tnT7w%3d'},
   {label:'GTA APE',   val:'https://cdn0.vox-cdn.com/uploads/chorus_asset/file/3683060/gta_5_mod_chimp.0.gif'},
    {label:'pixel adventure time',   val:'https://media1.tenor.com/m/DF7b306lMm0AAAAd/finn-and-jake.gif'},
-  {label:'pixel adventure time',   val:'https://wallpaperaccess.com/full/7824075.gif'},
   {label:'pixel night cat',   val:'https://media1.tenor.com/m/GTzbJen5xcoAAAAC/cute-wallpaper.gif'},
   {label:'Custoall',   val:''}
 ];

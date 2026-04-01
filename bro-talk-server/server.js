@@ -27,10 +27,15 @@ function saveDB(db) {
 }
 
 let db = loadDB();
-if (!db.dms)            { db.dms = {};            saveDB(db); }
-if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; saveDB(db); }
-if (!db.roomPasswords)  { db.roomPasswords = {};  saveDB(db); }
-if (!db.voicePasswords) { db.voicePasswords = {}; saveDB(db); }
+let changed = false;
+
+if (!db.dms)            { db.dms = {}; changed = true; }
+if (!db.voiceChannels)  { db.voiceChannels = ['Lounge', 'Gaming VC', 'Musik VC']; changed = true; }
+if (!db.roomPasswords)  { db.roomPasswords = {}; changed = true; }
+if (!db.voicePasswords) { db.voicePasswords = {}; changed = true; }
+
+// Nur einmal speichern, wenn wirklich etwas gefehlt hat
+if (changed) saveDB(db);
 
 
 
