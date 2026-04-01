@@ -56,16 +56,40 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
 });
 
-const ALLOWED_MIME=['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','video/mp4','video/webm','audio/mpeg','audio/wav','audio/webm','audio/ogg','application/pdf','application/zip','text/plain'];
+const ALLOWED_MIME=['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','video/mp4','video/webm','audio/mpeg','audio/wav','audio/webm','audio/ogg','application/pdf','application/zip','text/plain','application/octet-stream','application/x-zip-compressed','application/zip','application/x-rar-compressed'];
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 1000 * 1024 * 1024 },
   fileFilter:(req,file,cb)=>{
     if(ALLOWED_MIME.includes(file.mimetype))cb(null,true);
     else cb(new Error('Dateityp nicht erlaubt'));
   }
 });
+// 1. Statischer Ordner, damit man die Dateien auch wieder aufrufen/runterladen kann
+// Falls du das schon hast, überspringe diese Zeile
+app.use('/uploads', express.static('uploads'));
 
+// 2. Die Upload-Route (Der Endpunkt für den Button im Frontend)
+// Wichtig: 'upload' ist die Variable, die du mit multer definiert hast!
+app.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Keine Datei empfangen' });
+    }
+
+    // Wir erstellen die URL, unter der die Datei ab jetzt erreichbar ist
+    const fileUrl = `/uploads/${req.file.filename}`;
+    
+    // Wir schicken dem Frontend die Bestätigung zurück
+    res.json({ 
+      url: fileUrl, 
+      name: req.file.originalname 
+    });
+  } catch (err) {
+    console.error("Upload-Server-Fehler:", err);
+    res.status(500).json({ error: 'Serverfehler beim Upload' });
+  }
+});
 const app    = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6, pingTimeout: 120000, pingInterval: 15000 });
@@ -76,11 +100,20 @@ app.use(limiter);
 app.use('/uploads', express.static(uploadsDir));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.json());
+
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  const host = process.env.APP_URL || `http://localhost:${PORT}`;
-  res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
+// Diese Route verarbeitet den Upload der ZIPs/Dateien
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Keine Datei hochgeladen oder Typ nicht erlaubt' });
+  }
+  
+  // Wir geben die URL zurück, unter der die Datei jetzt erreichbar ist
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ 
+    url: fileUrl, 
+    name: req.file.originalname 
+  });
 });
 app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
 app.get('/rooms', (req, res) => res.json(db.rooms));

@@ -575,7 +575,13 @@ body{font-family:var(--font);background:var(--bg2);color:var(--text);display:fle
     <div style="display:flex;gap:6px;margin-bottom:14px">
       <input id="bgUrlIn" type="text" placeholder="Bild-URL…" style="flex:1;padding:7px 10px;border-radius:6px;border:none;background:var(--bg4);color:var(--text);font-size:.82rem">
       <button id="bgUrlApply" class="btn-acc" style="padding:7px 12px;font-size:.82rem">OK</button>
-      <label class="btn-sec" style="cursor:pointer;padding:7px 12px;font-size:.82rem;display:flex;align-items:center">📁<input type="file" id="bgFileIn" accept="image/*" style="display:none"></label>
+  <label class="btn-sec" style="cursor:pointer;padding:7px 12px;font-size:.82rem;display:flex;align-items:center">
+    🖼️ <input type="file" id="bgFileIn" accept="image/*" style="display:none">
+</label>
+
+<label class="btn-sec" style="cursor:pointer;padding:7px 12px;font-size:.82rem;display:flex;align-items:center" title="Datei senden">
+    📁 <input type="file" id="chatFileUpload" multiple style="display:none">
+</label>
     </div>
     
     <div class="prof-lbl">Schriftart</div>
@@ -1549,20 +1555,32 @@ function doJoin(){
     timeout:20000
   });
 
- socket.on('reconnect',()=>{
-  socket.emit('join',{name:myName,room:myRoom,color:myColor,avatar:myAvatar});
-  if(currentVoiceRoom){
-    setTimeout(async()=>{
-      socket.emit('joinVoice',{room:currentVoiceRoom});
-      // WebRTC neu aufbauen
-      Object.keys(peerConns).forEach(pid=>{
-        cleanPeer(pid);
-      });
-      await restartVoiceStreamFull();
-      // Neue Peers anfordern
-      socket.emit('joinVoice',{room:currentVoiceRoom});
-    },1000);
-  }
+ socket.on('connect', () => {
+    console.log("Verbunden mit ID:", socket.id);
+    myId = socket.id;
+
+    // 1. Im Text-Raum anmelden
+    socket.emit('join', { name: myName, room: myRoom, color: myColor, avatar: myAvatar });
+
+    // 2. Falls wir im Voice waren: Alles neu starten
+    if (currentVoiceRoom) {
+        console.log("Voice-Rejoin wird ausgeführt...");
+        
+        // Alte Verbindungen im Browser löschen
+        if (typeof peerConns !== 'undefined') {
+            Object.keys(peerConns).forEach(pid => {
+                if (typeof cleanPeer === 'function') cleanPeer(pid);
+            });
+        }
+
+        // Kurz warten, dann dem Voice-Server sagen: "Ich bin wieder da!"
+        setTimeout(async () => {
+            socket.emit('joinVoice', { room: currentVoiceRoom });
+            if (typeof restartVoiceStreamFull === 'function') {
+                await restartVoiceStreamFull();
+            }
+        }, 1000);
+    }
 });
 
   socket.on('connect',()=>{myId=socket.id;socket.emit('join',{name,room,color:myColor,avatar:myAvatar});});
@@ -3334,6 +3352,55 @@ function cancelReply() {
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function linkify(s){return s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:var(--accent)">$1</a>');}
+
+// Alle 30 Sekunden ein Signal an den Server senden
+setInterval(() => {
+    if (socket && socket.connected) {
+        socket.emit('heartbeat');
+    }
+}, 30000);
+// A. Der Hintergrund-Wechsler (Dein alter Code, falls gelöscht)
+document.getElementById('bgFileIn').onchange = function() {
+    const f = this.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = e => {
+        appearance.chatBg = e.target.result;
+        applyAppearance(); // Deine Funktion zum Style-Anwenden
+    };
+    r.readAsDataURL(f);
+};
+
+// B. Der DATEI-VERSAND (Der neue Code für ZIPs und Ordner)
+document.getElementById('chatFileUpload').onchange = async function() {
+    const files = this.files;
+    if (files.length === 0) return;
+
+    for (let f of files) {
+        const fd = new FormData();
+        fd.append('file', f);
+
+        try {
+            // Datei zum Server hochladen
+            const res = await fetch('/upload', { method: 'POST', body: fd });
+            const data = await res.json();
+            
+            if (data.url) {
+                // Den Link zur Datei per Socket an die anderen senden
+                // WICHTIG: Nutze hier den Event-Namen, den dein Server erwartet (z.B. 'chat' oder 'msg')
+                socket.emit('chat', { 
+                    type: 'file', 
+                    fileUrl: data.url, 
+                    fileName: f.name 
+                });
+            }
+        } catch (e) {
+            console.error("Upload fehlgeschlagen", e);
+            alert("Fehler beim Hochladen von: " + f.name);
+        }
+    }
+    this.value = ''; // Input zurücksetzen
+};
 </script>
 </body>
 </html>

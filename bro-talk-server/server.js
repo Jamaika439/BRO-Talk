@@ -64,6 +64,9 @@ const storage = multer.diskStorage({
 });
 const ALLOWED_MIME=['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','video/mp4','video/webm','audio/mpeg','audio/wav','audio/webm','audio/ogg','application/pdf','application/zip','text/plain'];
 const upload = multer({
+
+
+  
   storage,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter:(req,file,cb)=>{
@@ -71,10 +74,36 @@ const upload = multer({
     else cb(new Error('Dateityp nicht erlaubt'));
   }
 });
+// --- HIER EINSETZEN ---
 
+// Diese Route nimmt die Datei vom Frontend entgegen
+app.post('/upload', upload.single('file'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Datei fehlt oder Typ nicht erlaubt' });
+        }
+
+        // Die URL, unter der die Datei ab jetzt im Chat aufrufbar ist
+        const fileUrl = `/uploads/${req.file.filename}`;
+        
+        // Wir schicken dem Frontend den Pfad und den echten Namen zurück
+        res.json({ 
+            url: fileUrl, 
+            name: req.file.originalname 
+        });
+    } catch (err) {
+        console.error("Upload-Fehler:", err);
+        res.status(500).json({ error: 'Server-Fehler beim Hochladen' });
+    }
+});
+
+// WICHTIG: Damit man die Dateien auch runterladen kann, muss dieser Ordner öffentlich sein
+app.use('/uploads', express.static('uploads'));
+
+// --- ENDE EINSETZEN ---
 const app    = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6, pingTimeout: 120000, pingInterval: 15000 });
+const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 25e6, pingTimeout: 60000, pingInterval: 15000 });
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: 'Zu viele Anfragen, bitte warte kurz.' });
 const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
@@ -83,10 +112,18 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.json());
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  const host = process.env.APP_URL || `http://localhost:${PORT}`;
-  res.json({ url: `${host}/uploads/${req.file.filename}`, name: req.file.originalname });
+// Diese Route verarbeitet den Upload der ZIPs/Dateien
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Keine Datei hochgeladen oder Typ nicht erlaubt' });
+  }
+  
+  // Wir geben die URL zurück, unter der die Datei jetzt erreichbar ist
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ 
+    url: fileUrl, 
+    name: req.file.originalname 
+  });
 });
 app.get('/history/:room', (req, res) => res.json(getMessages(req.params.room)));
 app.get('/rooms', (req, res) => res.json(db.rooms));
@@ -104,6 +141,9 @@ function sysMsg(room, text) { io.to(room).emit('message', { id: Date.now(), user
 
 io.on('connection', socket => {
   // Rate Limiter pro Socket
+  socket.on('heartbeat', () => {
+    // Macht nichts, hält aber die Verbindung aktiv
+});
   const eventCounts=new Map();
   const socketLimiter=(max,windowMs=1000)=>{
     return ()=>{
